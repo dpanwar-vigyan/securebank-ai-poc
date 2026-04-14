@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banking AI — Service Interactions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #f0f4f9;
+    color: #1a2540;
+    padding: 40px 32px;
+    min-width: 1100px;
+  }
+
+  /* ── Header ── */
+  .hdr {
+    text-align:center; margin-bottom:44px;
+    background: linear-gradient(135deg, #003366 0%, #0055a5 100%);
+    border-radius: 18px; padding: 32px 40px;
+    box-shadow: 0 8px 32px rgba(0,51,102,0.15);
+  }
+  .hdr .chip {
+    display:inline-block; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.2);
+    color:#cce4ff; font-size:11px; font-weight:700; letter-spacing:2px;
+    text-transform:uppercase; padding:5px 16px; border-radius:20px; margin-bottom:14px;
+  }
+  .hdr h1 { font-size:28px; font-weight:800; color:#fff; margin-bottom:8px; }
+  .hdr p { color:#aaccee; font-size:14px; }
+
+  /* ── Legend ── */
+  .legend {
+    display:flex; flex-wrap:wrap; gap:10px; justify-content:center;
+    margin-bottom:36px;
+  }
+  .leg-item {
+    display:flex; align-items:center; gap:7px;
+    font-size:11px; font-weight:600; color:#445566;
+  }
+  .leg-dot { width:12px; height:12px; border-radius:3px; flex-shrink:0; }
+
+  /* ── Main grid ── */
+  .diagram {
+    display:grid;
+    grid-template-columns: 200px 1fr 200px;
+    grid-template-rows: auto;
+    gap:0;
+    position:relative;
+    max-width:1140px;
+    margin:0 auto;
+  }
+
+  /* ── Swim lanes ── */
+  .lane {
+    padding: 16px 0;
+    position: relative;
+  }
+  .lane-label {
+    font-size:10px; font-weight:700; letter-spacing:1.5px;
+    text-transform:uppercase; color:#445566; text-align:center;
+    margin-bottom:18px; padding-bottom:10px;
+    border-bottom:1px solid #131c2e;
+  }
+
+  /* ── Service node ── */
+  .node {
+    border-radius:12px; border:1px solid;
+    padding:14px 16px; margin-bottom:16px;
+    position:relative; cursor:default;
+    transition: transform .15s;
+  }
+  .node:hover { transform:translateY(-2px); }
+
+  .node-icon { font-size:20px; margin-bottom:6px; }
+  .node-name { font-size:13px; font-weight:700; margin-bottom:3px; }
+  .node-sub  { font-size:11px; opacity:.65; line-height:1.4; }
+  .node-badge {
+    position:absolute; top:10px; right:10px;
+    font-size:9px; font-weight:700; letter-spacing:1px;
+    text-transform:uppercase; padding:2px 8px;
+    border-radius:8px;
+  }
+
+  /* node colour themes */
+  .n-aws    { background:#eef5ff; border-color:#b8d4f8; color:#1a4488; }
+  .n-aws .node-badge    { background:#ddeeff; color:#0055aa; }
+
+  .n-ibm    { background:#eef2ff; border-color:#b8c8f8; color:#1a3488; }
+  .n-ibm .node-badge    { background:#dde8ff; color:#2244aa; }
+
+  .n-ch     { background:#eefaf6; border-color:#b8e8d8; color:#116655; }
+  .n-ch .node-badge     { background:#ddf5ee; color:#117755; }
+
+  .n-oss    { background:#f6eeff; border-color:#d4b8f8; color:#552288; }
+  .n-oss .node-badge    { background:#eeddf5; color:#7733cc; }
+
+  .n-ui     { background:#fff8ee; border-color:#f8ddb8; color:#884400; }
+  .n-ui .node-badge     { background:#fff0dd; color:#aa6600; }
+
+  .n-user   { background:#f0f8ff; border-color:#c0d8f0; color:#335577; }
+
+  /* ── Central flow ── */
+  .flow-center { padding: 0 16px; position:relative; }
+
+  /* ── Flow track ── */
+  .track {
+    border-radius:16px; border:1px solid;
+    padding:20px; margin-bottom:20px;
+    position:relative;
+    box-shadow: 0 2px 12px rgba(0,51,102,0.06);
+  }
+  .track-label {
+    font-size:10px; font-weight:700; letter-spacing:1.5px;
+    text-transform:uppercase; margin-bottom:14px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .track-label .tl-dot { width:8px; height:8px; border-radius:50%; }
+
+  .track-blue   { background:#f8fbff; border-color:#c0d4f0; }
+  .track-green  { background:#f8fffc; border-color:#b8ddc8; }
+  .track-orange { background:#fffaf0; border-color:#f0d8a8; }
+
+  /* ── Step row ── */
+  .steps { display:flex; align-items:stretch; gap:0; }
+  .step-box {
+    flex:1; padding:12px 10px; border-radius:10px;
+    border:1px solid; text-align:center;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    position:relative;
+  }
+  .step-box .snum {
+    width:20px; height:20px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:700; margin-bottom:6px; flex-shrink:0;
+  }
+  .step-box .stitle { font-size:11px; font-weight:700; margin-bottom:3px; line-height:1.3; }
+  .step-box .ssub   { font-size:10px; opacity:.7; line-height:1.4; }
+
+  .step-arr {
+    display:flex; align-items:center; padding:0 4px;
+    color:#aabbcc; font-size:18px; flex-shrink:0;
+  }
+
+  /* step colour themes */
+  .s-blue  { background:#eef5ff; border-color:#b8d4f8; color:#1a4488; }
+  .s-blue .snum  { background:#0044aa; color:#fff; }
+  .s-teal  { background:#eefaf6; border-color:#b8e8d8; color:#116655; }
+  .s-teal .snum  { background:#117755; color:#fff; }
+  .s-purple{ background:#f6eeff; border-color:#d4b8f8; color:#552288; }
+  .s-purple .snum{ background:#6633aa; color:#fff; }
+  .s-orange{ background:#fff8ee; border-color:#f8ddb8; color:#884400; }
+  .s-orange .snum{ background:#cc7700; color:#fff; }
+  .s-green { background:#edfaf2; border-color:#a8ddc0; color:#116633; }
+  .s-green .snum { background:#116633; color:#fff; }
+
+  /* ── Interaction arrows (SVG) ── */
+  .arrows-svg {
+    position:absolute;
+    top:0; left:0; width:100%; height:100%;
+    pointer-events:none;
+    overflow:visible;
+  }
+
+  /* ── Call label ── */
+  .call-label {
+    font-size:10px; font-weight:600;
+    padding:2px 8px; border-radius:6px;
+    white-space:nowrap; display:inline-block;
+    margin:2px 0;
+  }
+
+  /* ── Interaction table ── */
+  .int-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:11px; }
+  .int-table th {
+    background:#e8f0f8; color:#335577; font-weight:700;
+    padding:8px 10px; text-align:left; border-bottom:1px solid #c8d8e8;
+    letter-spacing:.5px; font-size:10px; text-transform:uppercase;
+  }
+  .int-table td {
+    padding:8px 10px; border-bottom:1px solid #eef2f8;
+    color:#445566; vertical-align:top; line-height:1.5;
+    background: #fff;
+  }
+  .int-table tr:hover td { background:#f8fbff; }
+  .int-table tr:last-child td { border-bottom:none; }
+  .int-table td:first-child { color:#1a2a44; font-weight:600; }
+  .int-table .tag {
+    display:inline-block; padding:1px 7px; border-radius:5px;
+    font-size:9px; font-weight:700; margin-right:4px;
+  }
+
+  /* ── Security section ── */
+  .security {
+    display:grid; grid-template-columns:repeat(4,1fr);
+    gap:12px; margin-top:8px;
+  }
+  .sec-card {
+    background:#f8fbff; border:1px solid #c8d8ee;
+    border-radius:10px; padding:12px 14px;
+  }
+  .sec-card .sc-icon { font-size:18px; margin-bottom:6px; }
+  .sec-card .sc-title { font-size:12px; font-weight:700; color:#1a3a5a; margin-bottom:4px; }
+  .sec-card .sc-desc  { font-size:11px; color:#556677; line-height:1.5; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align:center; margin-top:40px; padding-top:20px;
+    border-top:1px solid #dde4f0; color:#7788aa; font-size:11px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="hdr">
+  <div class="chip">Service Interaction Diagram</div>
+  <h1>Banking AI Document Assistant — How Services Talk to Each Other</h1>
+  <p>End-to-end data flow from IBM FileNet documents to banker chat responses</p>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="leg-item"><div class="leg-dot" style="background:#1a3d6e"></div>AWS Services</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#1a4080"></div>IBM (Production)</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#1a4a3a"></div>ClickHouse — Aggregation</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#3a1a6e"></div>ChromaDB — Content RAG</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#aa7700"></div>Query Router</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#4a3010"></div>Chat UI</div>
+  <div class="leg-item">
+    <svg width="30" height="12"><line x1="0" y1="6" x2="24" y2="6" stroke="#2a5a8a" stroke-width="2" stroke-dasharray="4,2"/><polygon points="22,3 30,6 22,9" fill="#2a5a8a"/></svg>
+    API call
+  </div>
+  <div class="leg-item">
+    <svg width="30" height="12"><line x1="0" y1="6" x2="24" y2="6" stroke="#1a4a3a" stroke-width="2"/><polygon points="22,3 30,6 22,9" fill="#1a4a3a"/></svg>
+    Data flow
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     TRACK 1 — PRE-POC (ClickHouse NL→SQL)
+════════════════════════════════════════ -->
+<div style="max-width:1140px;margin:0 auto 28px;">
+  <div class="track track-green">
+    <div class="track-label">
+      <div class="tl-dot" style="background:#00cc66"></div>
+      <span style="color:#117755">Track 1 — Aggregation Queries &nbsp;·&nbsp; Nova Lite NL→SQL → ClickHouse Cloud</span>
+      <span style="margin-left:auto;background:#edfaf2;color:#116633;border:1px solid #a8ddc0;font-size:9px;font-weight:700;padding:2px 10px;border-radius:8px;letter-spacing:1px">✅ LIVE</span>
+    </div>
+    <div class="steps">
+      <div class="step-box s-blue">
+        <div class="snum">1</div>
+        <div class="stitle">📂 IBM FileNet / S3</div>
+        <div class="ssub">PDF stored with<br>S3 object metadata</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-teal">
+        <div class="snum">2</div>
+        <div class="stitle">🐍 Python Ingestor</div>
+        <div class="ssub">boto3 S3 read<br>metadata → 32 columns</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-teal">
+        <div class="snum">3</div>
+        <div class="stitle">🗄️ ClickHouse Cloud</div>
+        <div class="ssub">clickhouse_connect<br>columnar store</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-blue">
+        <div class="snum">4</div>
+        <div class="stitle">🤖 Nova Lite LLM</div>
+        <div class="ssub">NL → SQL<br>schema-aware prompt</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-teal">
+        <div class="snum">5</div>
+        <div class="stitle">🗄️ ClickHouse executes</div>
+        <div class="ssub">Full dataset scan<br>no row limit</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-blue">
+        <div class="snum">6</div>
+        <div class="stitle">🤖 Nova Lite formats</div>
+        <div class="ssub">Rows → markdown<br>table + insights</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-green">
+        <div class="snum">7</div>
+        <div class="stitle">👤 Banker</div>
+        <div class="ssub">Answer + data table<br>+ generated SQL</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:11px;color:#446655;padding:8px 12px;background:#edfaf5;border-radius:8px;border:1px solid #b8ddc8">
+      <strong style="color:#116644">API calls made (per aggregation question):</strong>
+      &nbsp;bedrock-runtime.invoke_model(NL→SQL) → clickhouse_connect.query(SQL) → bedrock-runtime.invoke_model(format results)
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     TRACK 2 — FULL RAG
+════════════════════════════════════════ -->
+<div style="max-width:1140px;margin:0 auto 28px;">
+
+  <!-- Ingestion -->
+  <div class="track track-blue" style="margin-bottom:14px">
+    <div class="track-label">
+      <div class="tl-dot" style="background:#0088ff"></div>
+      <span style="color:#0055aa">Track 2A — Ingestion Pipeline &nbsp;·&nbsp; One-time batch + incremental on new documents</span>
+    </div>
+    <div class="steps">
+      <div class="step-box s-blue">
+        <div class="snum">1</div>
+        <div class="stitle">📂 S3 / FileNet</div>
+        <div class="ssub">PDF binary<br>downloaded</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-blue">
+        <div class="snum">2</div>
+        <div class="stitle">📄 pdfplumber</div>
+        <div class="ssub">Text extracted<br>page by page</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-blue">
+        <div class="snum">3</div>
+        <div class="stitle">✂️ LangChain Splitter</div>
+        <div class="ssub">500-token chunks<br>80-token overlap</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-blue">
+        <div class="snum">4</div>
+        <div class="stitle">🔢 Bedrock Titan</div>
+        <div class="ssub">256-dim vectors<br>per chunk</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-purple">
+        <div class="snum">5</div>
+        <div class="stitle">📦 ChromaDB</div>
+        <div class="ssub">vector + metadata<br>upserted locally</div>
+      </div>
+    </div>
+    <!-- Scanned path -->
+    <div style="margin-top:12px;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f6ff;border-radius:8px;border:1px solid #c0d4f0;font-size:11px;">
+      <span style="color:#445577;font-weight:700">Scanned PDF path:</span>
+      <span style="color:#334466">S3</span>
+      <span style="color:#aabbcc">→</span>
+      <span style="background:#0d1e33;color:#2266aa;padding:2px 8px;border-radius:5px;font-weight:600">AWS Textract OCR</span>
+      <span style="color:#aabbcc">→ extracted text joins same pipeline at step 3</span>
+      &nbsp;&nbsp;
+      <span style="margin-left:auto;color:#445566">Cost: ~$1.50 per 1,000 pages</span>
+    </div>
+  </div>
+
+  <!-- Query Router -->
+  <div class="track" style="background:#fffbf0;border-color:#f0dda8;margin-bottom:14px">
+    <div class="track-label">
+      <div class="tl-dot" style="background:#ffaa00"></div>
+      <span style="color:#aa7700">Track 2B — Smart Query Router &nbsp;·&nbsp; Automatic intent detection per question</span>
+    </div>
+    <div class="steps">
+      <div class="step-box s-orange">
+        <div class="snum">1</div>
+        <div class="stitle">👤 Banker Query</div>
+        <div class="ssub">Plain English<br>via Streamlit</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-orange">
+        <div class="snum">2</div>
+        <div class="stitle">🔀 Query Router</div>
+        <div class="ssub">Keyword intent<br>detection</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-teal" style="border:2px dashed #33aa77">
+        <div class="snum" style="background:#117755">A</div>
+        <div class="stitle">📊 Aggregation</div>
+        <div class="ssub">how many · count<br>per year · by branch<br>→ ClickHouse NL→SQL</div>
+      </div>
+      <div style="display:flex;align-items:center;padding:0 4px;color:#aabbcc;font-size:14px;flex-shrink:0">or</div>
+      <div class="step-box s-purple" style="border:2px dashed #6633aa">
+        <div class="snum" style="background:#6633aa">B</div>
+        <div class="stitle">🔍 Content Search</div>
+        <div class="ssub">summarise · explain<br>what did · show case<br>→ ChromaDB RAG</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-orange">
+        <div class="snum">3</div>
+        <div class="stitle">💬 Streamlit UI</div>
+        <div class="ssub">Answer + data table<br>or source citations</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content RAG Query -->
+  <div class="track track-blue">
+    <div class="track-label">
+      <div class="tl-dot" style="background:#0066ff"></div>
+      <span style="color:#0055aa">Track 2C — Content RAG Pipeline &nbsp;·&nbsp; Real-time semantic search per content question</span>
+    </div>
+    <div class="steps">
+      <div class="step-box s-orange">
+        <div class="snum">1</div>
+        <div class="stitle">👤 Banker Query</div>
+        <div class="ssub">Plain English<br>content question</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-blue">
+        <div class="snum">2</div>
+        <div class="stitle">🧩 LangChain</div>
+        <div class="ssub">Filter extraction<br>from NL query</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-blue">
+        <div class="snum">3</div>
+        <div class="stitle">🔢 Bedrock Titan</div>
+        <div class="ssub">Query embedded<br>→ 256-dim vector</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-purple">
+        <div class="snum">4</div>
+        <div class="stitle">📦 ChromaDB</div>
+        <div class="ssub">Hybrid search<br>vector + metadata</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-blue">
+        <div class="snum">5</div>
+        <div class="stitle">🤖 Nova Lite LLM</div>
+        <div class="ssub">Answer grounded<br>in top-20 chunks</div>
+      </div>
+      <div class="step-arr">→</div>
+      <div class="step-box s-orange">
+        <div class="snum">6</div>
+        <div class="stitle">💬 Streamlit UI</div>
+        <div class="ssub">Answer + citations<br>+ PDF links</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     SERVICE INTERACTION TABLE
+════════════════════════════════════════ -->
+<div style="max-width:1140px;margin:0 auto 28px;">
+  <div style="background:#ffffff;border:1px solid #d0dce8;border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,51,102,0.06);">
+    <div class="track-label" style="margin-bottom:16px">
+      <div class="tl-dot" style="background:#8844ff"></div>
+      <span style="color:#5533aa">Service-to-Service Interaction Map</span>
+    </div>
+    <table class="int-table">
+      <thead>
+        <tr>
+          <th>From</th>
+          <th>To</th>
+          <th>Protocol / API</th>
+          <th>What is exchanged</th>
+          <th>When</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Python Ingestor</td>
+          <td>🔵 AWS S3</td>
+          <td><span class="tag" style="background:#0d1e33;color:#0055aa">HTTPS</span>boto3 GetObject, HeadObject</td>
+          <td>PDF binary bytes + S3 object metadata tags</td>
+          <td>Ingestion batch / incremental</td>
+        </tr>
+        <tr>
+          <td>Python Ingestor</td>
+          <td>🔵 AWS Textract</td>
+          <td><span class="tag" style="background:#0d1e33;color:#0055aa">HTTPS</span>boto3 detect_document_text()</td>
+          <td>PDF pages → extracted text blocks (scanned docs only)</td>
+          <td>Ingestion — scanned PDFs only</td>
+        </tr>
+        <tr>
+          <td>Python Ingestor</td>
+          <td>🔵 Bedrock Titan</td>
+          <td><span class="tag" style="background:#0d1e33;color:#0055aa">HTTPS</span>bedrock-runtime.invoke_model()</td>
+          <td>Text chunk (≤8K tokens) → 256-dim float array</td>
+          <td>Ingestion — once per chunk</td>
+        </tr>
+        <tr>
+          <td>Python Ingestor</td>
+          <td>🟣 ChromaDB</td>
+          <td><span class="tag" style="background:#f0eaff;color:#6633aa">Local gRPC</span>collection.upsert()</td>
+          <td>chunk text + embedding vector + metadata dict</td>
+          <td>Ingestion — once per chunk</td>
+        </tr>
+        <tr>
+          <td>Python Ingestor</td>
+          <td>🟢 ClickHouse Cloud</td>
+          <td><span class="tag" style="background:#0d1e1a;color:#33aa77">HTTPS / Native</span>clickhouse_connect.insert()</td>
+          <td>Metadata row: customer, RM, branch, case fields (32 columns)</td>
+          <td>Ingestion — all 1,000 docs</td>
+        </tr>
+        <tr>
+          <td>Streamlit UI</td>
+          <td>🟣 LangChain RAG Chain</td>
+          <td><span class="tag" style="background:#f0eaff;color:#6633aa">In-process</span>Python function call</td>
+          <td>Banker query string → result dict (answer + sources)</td>
+          <td>Every question</td>
+        </tr>
+        <tr style="background:#f8fff8">
+          <td>LangChain RAG Chain</td>
+          <td>🔵 Bedrock Nova Lite <span style="color:#33aa77;font-size:10px">(NL→SQL)</span></td>
+          <td><span class="tag" style="background:#0d1e33;color:#0055aa">HTTPS</span>bedrock-runtime.invoke_model()</td>
+          <td>Banker question + schema → valid ClickHouse SQL query</td>
+          <td>Aggregation questions only (counts, trends, breakdowns)</td>
+        </tr>
+        <tr style="background:#f8fff8">
+          <td>LangChain RAG Chain</td>
+          <td>🟢 ClickHouse Cloud</td>
+          <td><span class="tag" style="background:#0d1e1a;color:#33aa77">HTTPS / Native</span>clickhouse_connect.query()</td>
+          <td>Generated SQL → result rows (full dataset, no row limit)</td>
+          <td>Aggregation questions only</td>
+        </tr>
+        <tr style="background:#f8fff8">
+          <td>LangChain RAG Chain</td>
+          <td>🔵 Bedrock Nova Lite <span style="color:#33aa77;font-size:10px">(format)</span></td>
+          <td><span class="tag" style="background:#0d1e33;color:#0055aa">HTTPS</span>bedrock-runtime.invoke_model()</td>
+          <td>Raw ClickHouse result rows → formatted markdown answer + insights</td>
+          <td>Aggregation questions only</td>
+        </tr>
+        <tr>
+          <td>LangChain RAG Chain</td>
+          <td>🔵 Bedrock Titan</td>
+          <td><span class="tag" style="background:#0d1e33;color:#0055aa">HTTPS</span>bedrock-runtime.invoke_model()</td>
+          <td>Query text → 256-dim embedding vector</td>
+          <td>Content questions only</td>
+        </tr>
+        <tr>
+          <td>LangChain RAG Chain</td>
+          <td>🟣 ChromaDB</td>
+          <td><span class="tag" style="background:#f0eaff;color:#6633aa">Local gRPC</span>collection.query()</td>
+          <td>Query vector + metadata filters → top-20 chunks + scores</td>
+          <td>Content questions only</td>
+        </tr>
+        <tr>
+          <td>LangChain RAG Chain</td>
+          <td>🔵 Bedrock Nova Lite <span style="color:#6633aa;font-size:10px">(RAG)</span></td>
+          <td><span class="tag" style="background:#0d1e33;color:#0055aa">HTTPS</span>bedrock-runtime.invoke_model()</td>
+          <td>System prompt + retrieved chunks + question → answer text with doc citations</td>
+          <td>Content questions only</td>
+        </tr>
+        <tr>
+          <td>Streamlit UI</td>
+          <td>👤 Banker Browser</td>
+          <td><span class="tag" style="background:#fff4e8;color:#995500">HTTP / WebSocket</span>Streamlit server</td>
+          <td>Rendered chat UI, answer text, source cards, S3 PDF links</td>
+          <td>Continuous session</td>
+        </tr>
+        <tr>
+          <td>Banker Browser</td>
+          <td>🔵 AWS S3</td>
+          <td><span class="tag" style="background:#0d1e33;color:#0055aa">HTTPS</span>Pre-signed URL</td>
+          <td>PDF binary → rendered in browser tab</td>
+          <td>When banker clicks "View PDF"</td>
+        </tr>
+        <tr>
+          <td style="color:#226644">IBM FileNet (Prod)</td>
+          <td>🐍 Python Ingestor</td>
+          <td><span class="tag" style="background:#eef2ff;color:#2244aa">REST / CMIS</span>FileNet Content Engine REST API</td>
+          <td>PDF binary + FileNet object properties</td>
+          <td>Production — replaces S3 boto3 calls</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     PRODUCTION SWAP MAP
+════════════════════════════════════════ -->
+<div style="max-width:1140px;margin:0 auto 28px;">
+  <div class="track track-orange">
+    <div class="track-label">
+      <div class="tl-dot" style="background:#ffaa00"></div>
+      <span style="color:#aa7700">POC → Production: What Changes vs What Stays</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#666;text-transform:uppercase;margin-bottom:10px">🔄 Swap (config change only)</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
+          <div style="display:flex;align-items:center;gap:10px;background:#fff8ee;padding:10px 14px;border-radius:8px;border:1px solid #f0d8a8">
+            <span style="color:#556677;min-width:90px">S3 bucket</span>
+            <span style="color:#aabbcc">→</span>
+            <span style="color:#884400">IBM FileNet P8</span>
+            <span style="color:#556677;margin-left:auto">FileNetLoader replaces S3FileLoader</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;background:#fff8ee;padding:10px 14px;border-radius:8px;border:1px solid #f0d8a8">
+            <span style="color:#556677;min-width:90px">Nova Lite</span>
+            <span style="color:#aabbcc">→</span>
+            <span style="color:#884400">Claude Haiku 3</span>
+            <span style="color:#556677;margin-left:auto">1 line: LLM_MODEL = "..."</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;background:#fff8ee;padding:10px 14px;border-radius:8px;border:1px solid #f0d8a8">
+            <span style="color:#556677;min-width:90px">ChromaDB</span>
+            <span style="color:#aabbcc">→</span>
+            <span style="color:#884400">pgvector on RDS</span>
+            <span style="color:#556677;margin-left:auto">Same LangChain interface</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;background:#fff8ee;padding:10px 14px;border-radius:8px;border:1px solid #f0d8a8">
+            <span style="color:#556677;min-width:90px">Streamlit</span>
+            <span style="color:#aabbcc">→</span>
+            <span style="color:#884400">FastAPI + React</span>
+            <span style="color:#556677;margin-left:auto">Same RAG chain backend</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#666;text-transform:uppercase;margin-bottom:10px">✅ Stays identical</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
+          <div style="background:#fffaf0;padding:10px 14px;border-radius:8px;border:1px solid #eeddb8;color:#665533">
+            ✓ &nbsp;Chunking logic (RecursiveCharacterTextSplitter)
+          </div>
+          <div style="background:#fffaf0;padding:10px 14px;border-radius:8px;border:1px solid #eeddb8;color:#665533">
+            ✓ &nbsp;Titan Embeddings API call
+          </div>
+          <div style="background:#fffaf0;padding:10px 14px;border-radius:8px;border:1px solid #eeddb8;color:#665533">
+            ✓ &nbsp;Hybrid retrieval (vector + metadata filters)
+          </div>
+          <div style="background:#fffaf0;padding:10px 14px;border-radius:8px;border:1px solid #eeddb8;color:#665533">
+            ✓ &nbsp;Banking system prompt
+          </div>
+          <div style="background:#fffaf0;padding:10px 14px;border-radius:8px;border:1px solid #eeddb8;color:#665533">
+            ✓ &nbsp;Source citation logic
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     SECURITY & COMPLIANCE LAYER
+════════════════════════════════════════ -->
+<div style="max-width:1140px;margin:0 auto 28px;">
+  <div style="background:#ffffff;border:1px solid #d0dce8;border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,51,102,0.06)">
+    <div class="track-label" style="margin-bottom:16px">
+      <div class="tl-dot" style="background:#ff4466"></div>
+      <span style="color:#aa3355">Security &amp; Compliance Layer — Applied Across All Services</span>
+    </div>
+    <div class="security">
+      <div class="sec-card">
+        <div class="sc-icon">🔐</div>
+        <div class="sc-title">IAM Role-Based Access</div>
+        <div class="sc-desc">Each banker's session scoped to their branch and assigned cases. AWS IAM + FileNet ACLs enforced at every API call.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sc-icon">📋</div>
+        <div class="sc-title">Audit Logging</div>
+        <div class="sc-desc">Every query, every retrieved document chunk and every LLM call logged to CloudWatch for FCA compliance and review.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sc-icon">🛡️</div>
+        <div class="sc-title">PII Redaction</div>
+        <div class="sc-desc">Account numbers and sensitive fields masked before sending context to external LLM endpoints. On-premise option via IBM watsonx.</div>
+      </div>
+      <div class="sec-card">
+        <div class="sc-icon">🔒</div>
+        <div class="sc-title">Data Residency</div>
+        <div class="sc-desc">All data stays within AWS region. S3, Bedrock and ChromaDB operate in the same region. FileNet on-premise in production.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <strong>Banking AI Document Assistant</strong> &nbsp;·&nbsp;
+  AWS Bedrock &nbsp;·&nbsp; IBM FileNet P8 &nbsp;·&nbsp; ClickHouse Cloud &nbsp;·&nbsp; LangChain &nbsp;·&nbsp; ChromaDB &nbsp;·&nbsp; Streamlit
+</div>
+
+</body>
+</html>

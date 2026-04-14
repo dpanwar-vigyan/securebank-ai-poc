@@ -1,0 +1,150 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LINKEDIN POST (Short · for feed)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🏦 I built a working AI chatbot for banking documents in a weekend — here's exactly how.
+
+The problem: bankers spend hours hunting through eStatements, dispute cases, complaints and account maintenance records stored in systems like IBM FileNet. No quick way to ask "why did we lose this dispute?" or "what did this customer complain about?"
+
+The solution I built:
+
+→ 1,000 banking documents stored in AWS S3 (mirroring IBM FileNet)
+→ PDF text extracted, chunked and embedded using AWS Bedrock Titan
+→ Vectors stored in ChromaDB with full metadata (customer, RM, branch, case details)
+→ Amazon Nova Lite LLM answers questions grounded in the actual document content
+→ Streamlit chat UI with source citations and PDF deep links
+
+Two tracks delivered:
+
+✅ Pre-POC Demo (live now): Natural language → SQL via ClickHouse Cloud. Bankers ask "show all high priority complaints from Leeds" and get instant results. Zero ML engineering needed.
+
+🚀 Full RAG Chatbot: Ask content questions. "Summarise Mathew Little's complaint." "Why was dispute DSP00047 lost?" The chatbot reads the actual PDF and answers — with citations.
+
+Total cost to run: ~$1/month at POC scale.
+Built on: AWS Free Tier + ClickHouse Cloud free trial.
+Production swap: S3 → IBM FileNet (one loader change). Nova Lite → Claude Haiku (one line).
+
+The architecture diagram is in the comments 👇
+
+What banking document challenges are you solving with AI? Drop a comment.
+
+#BankingAI #RAG #GenerativeAI #AWS #IBMFileNet #FinTech #DocumentAI #LLM #AWSBedrock #Innovation
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LINKEDIN ARTICLE (Long-form · publish as article)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TITLE:
+How I Built a Banking Document AI Chatbot on AWS Free Tier — Architecture, Code and Lessons Learned
+
+SUBTITLE:
+A practical RAG implementation for eStatements, dispute cases, complaints and account maintenance records — production-ready with IBM FileNet
+
+━━━━━━━━━━━━
+
+THE PROBLEM
+
+Every bank I have worked with has the same challenge. Thousands of customer documents — eStatements, dispute case files, complaint records, account maintenance requests — locked inside document management systems like IBM FileNet. Relationship managers spend valuable time manually searching through these systems, reading through PDFs, and piecing together a customer's history.
+
+The question I set out to answer: can a banker simply ask in plain English — "Why did we lose this dispute?" or "What did this customer complain about last year?" — and get an accurate, cited answer in seconds?
+
+The answer is yes. Here is exactly how I built it.
+
+━━━━━━━━━━━━
+
+THE ARCHITECTURE: TWO TRACKS
+
+I designed the solution in two tracks that build on each other.
+
+TRACK 1 — Pre-POC Demo (Metadata Query)
+The fastest way to prove value to stakeholders. No ML engineering required.
+
+Extract metadata from each PDF during upload — customer ID, relationship manager, branch, case summary, dates, amounts, status. Store this in ClickHouse Cloud. Use ClickHouse's built-in AI interface to answer natural language questions via auto-generated SQL.
+
+"Show all high priority complaints from Leeds branch" → instant results.
+"Which RM handled the most disputes over £5,000?" → answered in milliseconds.
+
+This can be live in a day. It answers metadata-level questions perfectly.
+
+TRACK 2 — Full RAG Chatbot (Content + Metadata)
+This is where it gets powerful. Retrieval Augmented Generation (RAG) allows the chatbot to read inside the actual PDF documents and answer content questions.
+
+"Summarise what Mathew Little's complaint was about."
+"Why was dispute DSP00047 resolved in the bank's favour?"
+"What reason did the customer give for the unauthorised transaction claim?"
+
+The pipeline:
+1. Download each PDF from S3
+2. Extract text using pdfplumber (digital PDFs) or AWS Textract (scanned)
+3. Split into 500-token chunks with 80-token overlap
+4. Generate 256-dimension embeddings using AWS Bedrock Titan Embeddings v2
+5. Store chunks + metadata in ChromaDB vector store
+6. At query time: extract filters from the question, run hybrid search (semantic + metadata), pass top-6 chunks to Amazon Nova Lite LLM
+7. LLM generates a grounded answer citing specific document IDs
+
+━━━━━━━━━━━━
+
+THE TECH STACK
+
+Document Store: AWS S3 (POC) → IBM FileNet P8 (Production)
+Text Extraction: pdfplumber + AWS Textract for OCR
+Embeddings: AWS Bedrock Titan Embeddings v2 (256 dimensions)
+Vector Store: ChromaDB (POC) → pgvector on RDS (Production)
+LLM: Amazon Nova Lite (POC) → Claude Haiku (Production)
+Metadata Store: ClickHouse Cloud
+Orchestration: LangChain + Python
+Chat UI: Streamlit
+Access Control: IAM role-based filtering
+
+━━━━━━━━━━━━
+
+THE PRODUCTION MIGRATION IS ONE SWAP
+
+This was an important design decision. Every component was chosen so that moving from POC to production is a configuration change, not a rewrite.
+
+S3 → IBM FileNet: replace the S3FileLoader with a FileNetLoader using FileNet REST API / CMIS. All chunking, embedding and retrieval code is identical.
+
+ChromaDB → pgvector: same LangChain interface, different backend. Full ACID compliance and multi-user support.
+
+Nova Lite → Claude Haiku: one line change. Claude Haiku provides better reasoning for complex banking queries and comes with Anthropic's safety training — important for regulated industries.
+
+━━━━━━━━━━━━
+
+THE COST REALITY
+
+This entire POC runs on AWS Free Tier plus ClickHouse Cloud's free trial.
+
+One-time ingestion of 1,000 documents: ~$0.10 (Titan Embeddings)
+Per question cost (Nova Lite): ~$0.001
+At 100 questions per day: ~$1 per month
+
+When moving to Claude Haiku in production: ~$12 per month at the same volume. Still remarkably cheap for the value delivered.
+
+━━━━━━━━━━━━
+
+KEY LESSONS
+
+1. Start with metadata. The ClickHouse demo is something you can show a stakeholder on day one. It answers 60% of real-world banker queries and requires no ML.
+
+2. Digital PDFs need no OCR. System-generated bank statements and case files have embedded text layers. Save Textract costs for genuinely scanned documents.
+
+3. Metadata filters are as important as semantic search. "Show complaints from Leeds" needs a branch filter, not just vector similarity. Build hybrid retrieval from the start.
+
+4. Cite your sources. Every answer must reference the document ID and link back to the original PDF. Without citations, bankers cannot trust the answer in regulated contexts.
+
+5. IBM FileNet integration is a loader, not an architecture change. The FileNet REST API and CMIS standard make it straightforward to slot in as the document source. The RAG pipeline above it stays unchanged.
+
+━━━━━━━━━━━━
+
+WHAT'S NEXT
+
+The next phase adds:
+- Role-based access control (bankers see only their branch / assigned cases)
+- Full audit logging of every query and retrieved document (FCA compliance)
+- PII redaction before sending context to external LLMs
+- Incremental ingestion triggered by FileNet object store events
+
+Interested in the architecture diagram or the code? Drop a comment below.
+
+#BankingAI #RAG #GenerativeAI #AWS #IBMFileNet #FinTech #DocumentAI #LLM #AWSBedrock #ClickHouse #LangChain #Streamlit #CloudArchitecture

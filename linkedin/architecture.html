@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banking AI Document Assistant — Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #f0f4f9;
+    color: #1a2540;
+    min-height: 100vh;
+    padding: 40px;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 44px;
+    background: linear-gradient(135deg, #003366 0%, #0055a5 100%);
+    border-radius: 18px;
+    padding: 36px 40px;
+    color: white;
+    box-shadow: 0 8px 32px rgba(0,51,102,0.18);
+  }
+  .header .tag {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    color: #cce4ff;
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; padding: 5px 16px;
+    border-radius: 20px; margin-bottom: 14px;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .header h1 { font-size: 30px; font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 8px; }
+  .header p  { color: #aaccee; font-size: 14px; }
+
+  /* ── Canvas ── */
+  .canvas { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+  /* ── Layer block ── */
+  .layer {
+    border-radius: 16px; padding: 24px;
+    border: 1px solid #d4dff0;
+    background: #ffffff;
+    box-shadow: 0 2px 12px rgba(0,51,102,0.06);
+  }
+  .layer-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px; color: #3a5080;
+  }
+  .layer-title .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Row ── */
+  .row { display: flex; gap: 16px; align-items: stretch; }
+  .row > * { flex: 1; }
+  .arrow-right { display: flex; align-items: center; padding: 0 2px; color: #aabbcc; font-size: 20px; flex-shrink: 0; }
+  .arrow-down  { text-align: center; color: #aabbcc; font-size: 22px; margin: -6px 0; }
+
+  /* ── Cards ── */
+  .card {
+    border-radius: 12px; padding: 18px 20px;
+    border: 1px solid; position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 3px; border-radius: 12px 12px 0 0;
+  }
+  .card-blue   { background: #f0f6ff; border-color: #c0d8f8; }
+  .card-blue::before   { background: linear-gradient(90deg,#0044aa,#2288ff); }
+  .card-teal   { background: #f0faf8; border-color: #b8e8e0; }
+  .card-teal::before   { background: linear-gradient(90deg,#007766,#00ccaa); }
+  .card-purple { background: #f8f4ff; border-color: #d4c4f8; }
+  .card-purple::before { background: linear-gradient(90deg,#5522aa,#9966ff); }
+  .card-orange { background: #fff8f0; border-color: #f8ddb8; }
+  .card-orange::before { background: linear-gradient(90deg,#cc7700,#ffaa33); }
+
+  .card-title { font-size: 13px; font-weight: 700; color: #1a2a44; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .card-desc  { font-size: 12px; color: #5566880; line-height: 1.6; color: #556688; }
+
+  /* ── Pills ── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 11px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; margin: 3px; border: 1px solid;
+  }
+  .pill-blue   { background: #e8f2ff; border-color: #b0ccee; color: #1a4488; }
+  .pill-teal   { background: #e8f8f4; border-color: #a0ddd0; color: #116655; }
+  .pill-purple { background: #f4eeff; border-color: #ccaaee; color: #552288; }
+  .pill-green  { background: #edfaf2; border-color: #a0ddbb; color: #116633; }
+  .pill-orange { background: #fff4e8; border-color: #eeccaa; color: #884400; }
+  .pill-grey   { background: #f0f2f6; border-color: #ccd4e0; color: #445566; }
+  .pill-red    { background: #fff0f2; border-color: #eebbc4; color: #881133; }
+  .pill-white  { background: #f8faff; border-color: #dde4f0; color: #334466; }
+
+  /* ── Doc chips ── */
+  .doc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-chip {
+    padding: 8px 14px; border-radius: 10px;
+    font-size: 12px; font-weight: 600; border: 1px solid;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ── Stats ── */
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+  .stat {
+    flex: 1; min-width: 90px;
+    background: #f4f8ff; border: 1px solid #d0dff0;
+    border-radius: 10px; padding: 12px 14px; text-align: center;
+  }
+  .stat-num   { font-size: 22px; font-weight: 800; color: #0055aa; }
+  .stat-label { font-size: 11px; color: #7788aa; margin-top: 2px; font-weight: 500; }
+
+  /* ── Step ── */
+  .step { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+  .step-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+  }
+  .step-text { font-size: 13px; color: #445566; line-height: 1.5; }
+  .step-text strong { color: #1a2a44; }
+
+  /* ── Phase badge ── */
+  .phase-badge {
+    position: absolute; top: 16px; right: 16px;
+    font-size: 10px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; padding: 3px 10px; border-radius: 8px;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    display: flex; align-items: center; gap: 14px;
+    color: #9aaabb; font-size: 11px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, transparent, #ccd8e8, transparent);
+  }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center; margin-top: 36px; padding-top: 20px;
+    border-top: 1px solid #dde4f0; color: #8899aa; font-size: 12px;
+  }
+  .footer strong { color: #446688; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="tag">Solution Architecture</div>
+  <h1>🏦 Banking AI Document Assistant</h1>
+  <p>From IBM FileNet documents to natural language answers — powered by RAG + AWS Bedrock</p>
+</div>
+
+<div class="canvas">
+
+  <!-- Document Sources -->
+  <div class="layer">
+    <div class="layer-title">
+      <div class="dot" style="background:#0066cc"></div>
+      Document Sources &nbsp;·&nbsp; IBM FileNet P8 (Production) &nbsp;·&nbsp; AWS S3 (POC)
+    </div>
+    <div class="doc-chips">
+      <div class="doc-chip" style="background:#f0f6ff;border-color:#b8d4f8;color:#1a4488">
+        📄 eStatements <span style="color:#99aacc;font-weight:400">· 400 docs</span>
+      </div>
+      <div class="doc-chip" style="background:#f8f4ff;border-color:#ccbbee;color:#552288">
+        ⚖️ Dispute Cases <span style="color:#99aacc;font-weight:400">· 250 docs</span>
+      </div>
+      <div class="doc-chip" style="background:#fff0f4;border-color:#eebbc8;color:#881133">
+        📢 Complaints <span style="color:#99aacc;font-weight:400">· 200 docs</span>
+      </div>
+      <div class="doc-chip" style="background:#edfaf2;border-color:#a8ddc0;color:#116633">
+        🔧 Account Maintenance <span style="color:#99aacc;font-weight:400">· 150 docs</span>
+      </div>
+      <div class="doc-chip" style="background:#fff8ee;border-color:#eeddbb;color:#884400">
+        🔍 Digital PDF → pdfplumber
+      </div>
+      <div class="doc-chip" style="background:#fff8ee;border-color:#eeddbb;color:#884400">
+        🖨️ Scanned PDF → AWS Textract OCR
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-num">1,000</div><div class="stat-label">Total Documents</div></div>
+      <div class="stat"><div class="stat-num">~4,000</div><div class="stat-label">Text Chunks</div></div>
+      <div class="stat"><div class="stat-num">256-d</div><div class="stat-label">Embedding Dims</div></div>
+      <div class="stat"><div class="stat-num">&lt;30s</div><div class="stat-label">New Doc → Queryable</div></div>
+      <div class="stat"><div class="stat-num">~$0.10</div><div class="stat-label">Ingestion Cost</div></div>
+      <div class="stat"><div class="stat-num">~$1/mo</div><div class="stat-label">Running Cost</div></div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+  <div class="divider">Two delivery tracks</div>
+
+  <!-- Two tracks -->
+  <div class="row">
+
+    <!-- Track 1 -->
+    <div class="layer" style="border-color:#b8ddc8;background:#f8fffc;">
+      <div class="phase-badge" style="background:#edfaf2;color:#116633;border:1px solid #a8ddc0">✅ Live Now</div>
+      <div class="layer-title">
+        <div class="dot" style="background:#00aa66"></div>
+        Track 1 · Pre-POC — Aggregation via ClickHouse NL→SQL
+      </div>
+      <div class="step">
+        <div class="step-num" style="background:#edfaf2;color:#116633;border:1px solid #a8ddc0">1</div>
+        <div class="step-text"><strong>PDF metadata extracted</strong> during upload<br>Customer ID, RM, Branch, Case Summary, Dates → 32 columns</div>
+      </div>
+      <div class="step">
+        <div class="step-num" style="background:#edfaf2;color:#116633;border:1px solid #a8ddc0">2</div>
+        <div class="step-text"><strong>Stored in ClickHouse Cloud</strong><br>Columnar DB — optimised for billion-row analytics</div>
+      </div>
+      <div class="step">
+        <div class="step-num" style="background:#edfaf2;color:#116633;border:1px solid #a8ddc0">3</div>
+        <div class="step-text"><strong>Nova Lite converts NL → SQL</strong><br>Schema-aware prompt → valid ClickHouse query</div>
+      </div>
+      <div class="step">
+        <div class="step-num" style="background:#edfaf2;color:#116633;border:1px solid #a8ddc0">4</div>
+        <div class="step-text"><strong>Nova Lite formats results</strong><br>Raw rows → professional markdown answer with insights</div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="pill pill-green">🟢 ClickHouse Cloud</div>
+        <div class="pill pill-blue">🤖 Nova Lite NL→SQL</div>
+        <div class="pill pill-grey">Full dataset scan</div>
+        <div class="pill pill-grey">No TOP_K limit</div>
+      </div>
+      <div style="margin-top:14px;padding:12px;background:#f0fdf6;border-radius:8px;border:1px solid #c0eedd">
+        <div style="font-size:11px;color:#116644;font-weight:700;margin-bottom:6px">✓ Aggregation questions → ClickHouse</div>
+        <div style="font-size:12px;color:#556677;line-height:1.8">
+          • "How many complaints raised each year?"<br>
+          • "Which RM handled the most disputes?"<br>
+          • "Total compensation paid per branch"<br>
+          • "Breakdown of dispute types referred to Ombudsman"
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-right" style="font-size:14px;flex-direction:column;gap:4px;color:#7788aa">
+      <div style="font-size:11px;font-weight:700;color:#7788aa;text-align:center">query<br>router</div>
+      <div style="font-size:18px">⇄</div>
+    </div>
+
+    <!-- Track 2 -->
+    <div class="layer" style="border-color:#b8ccee;background:#f8fbff;">
+      <div class="phase-badge" style="background:#e8f2ff;color:#0044aa;border:1px solid #b0ccee">🚀 Full POC</div>
+      <div class="layer-title">
+        <div class="dot" style="background:#0066cc"></div>
+        Track 2 · Full RAG — Content Search via ChromaDB
+      </div>
+      <div class="step">
+        <div class="step-num" style="background:#e8f2ff;color:#0044aa;border:1px solid #b0ccee">1</div>
+        <div class="step-text"><strong>PDF text extracted &amp; chunked</strong><br>500-token chunks, 80-token overlap</div>
+      </div>
+      <div class="step">
+        <div class="step-num" style="background:#e8f2ff;color:#0044aa;border:1px solid #b0ccee">2</div>
+        <div class="step-text"><strong>Embedded via Bedrock Titan</strong><br>256-dim vectors stored in ChromaDB (~3,948 chunks)</div>
+      </div>
+      <div class="step">
+        <div class="step-num" style="background:#e8f2ff;color:#0044aa;border:1px solid #b0ccee">3</div>
+        <div class="step-text"><strong>Semantic vector search</strong><br>Top-K chunks retrieved + metadata filters applied</div>
+      </div>
+      <div class="step">
+        <div class="step-num" style="background:#e8f2ff;color:#0044aa;border:1px solid #b0ccee">4</div>
+        <div class="step-text"><strong>Nova Lite generates answer</strong><br>Grounded in retrieved chunks, cites doc IDs</div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="pill pill-blue">🔵 AWS Bedrock</div>
+        <div class="pill pill-blue">🤖 Nova Lite LLM</div>
+        <div class="pill pill-purple">📦 ChromaDB</div>
+        <div class="pill pill-purple">🔗 LangChain</div>
+      </div>
+      <div style="margin-top:14px;padding:12px;background:#f0f6ff;border-radius:8px;border:1px solid #c0d8f8">
+        <div style="font-size:11px;color:#0044aa;font-weight:700;margin-bottom:6px">✓ Content questions → ChromaDB RAG</div>
+        <div style="font-size:12px;color:#556677;line-height:1.8">
+          • "Summarise Mathew Little's complaint"<br>
+          • "Why was dispute DSP00047 lost?"<br>
+          • "What did the customer say in this case?"<br>
+          • "Show high priority complaints from Leeds"
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Query Router callout -->
+  <div class="layer" style="background:#fffbf0;border-color:#f0dda8;border-left:4px solid #ffaa00;">
+    <div class="layer-title">
+      <div class="dot" style="background:#ff9900"></div>
+      Smart Query Router — Automatic Intent Detection
+    </div>
+    <div class="row" style="gap:16px;align-items:center">
+      <div style="flex:2">
+        <div style="font-size:13px;color:#554400;line-height:1.7">
+          Every banker question is <strong>automatically classified</strong> by keyword intent before hitting any backend.
+          No manual switching — the system picks the right engine every time.
+        </div>
+        <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
+          <div class="pill pill-orange">how many · count · total · breakdown · per year · by branch · which RM · average · trend</div>
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:#776633">↳ Any of these keywords → routed to ClickHouse NL→SQL (full dataset scan, no limit)</div>
+        <div style="margin-top:4px;font-size:11px;color:#556688">↳ All other questions → routed to ChromaDB semantic vector search (summarise, explain, what did, show case)</div>
+      </div>
+      <div style="flex:1;background:#fff8ee;border:1px solid #f0ddb8;border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:#884400;margin-bottom:8px">⚡ Why Two Engines?</div>
+        <div style="font-size:11px;color:#665533;line-height:1.7">
+          <strong>ClickHouse</strong> — scans ALL 1,000+ docs, perfect for counts &amp; trends.<br>
+          <strong>ChromaDB</strong> — semantic search for <em>what was said</em> inside a specific case.<br>
+          Neither alone is sufficient — together they cover every question type.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Chat UI -->
+  <div class="layer">
+    <div class="layer-title">
+      <div class="dot" style="background:#7744cc"></div>
+      Banker-Facing Chat Interface — Streamlit
+    </div>
+    <div class="row" style="gap:14px">
+      <div class="card card-purple" style="flex:2">
+        <div class="card-title">💬 Natural Language Chat</div>
+        <div class="card-desc">
+          Bankers type questions in plain English. No SQL, no file browsing, no training required.
+          Responses include source document citations with direct links back to PDFs in S3 / FileNet.
+        </div>
+        <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px">
+          <div class="pill pill-purple">Intent detection</div>
+          <div class="pill pill-purple">Auto metadata filters</div>
+          <div class="pill pill-purple">Source citations</div>
+          <div class="pill pill-purple">PDF deep links</div>
+        </div>
+      </div>
+      <div class="card card-blue" style="flex:1">
+        <div class="card-title">🔐 Access Control</div>
+        <div class="card-desc">Role-based filtering — bankers only see documents within their scope.</div>
+        <div style="margin-top:10px">
+          <div class="pill pill-grey" style="display:block;margin-bottom:4px">Branch Banker → own branch</div>
+          <div class="pill pill-grey" style="display:block;margin-bottom:4px">Case Manager → assigned cases</div>
+          <div class="pill pill-grey" style="display:block">Compliance → read all</div>
+        </div>
+      </div>
+      <div class="card card-teal" style="flex:1">
+        <div class="card-title">💰 Running Cost</div>
+        <div class="card-desc">
+          <div class="pill pill-teal" style="display:block;margin-bottom:5px">~$0.001 per question</div>
+          <div class="pill pill-teal" style="display:block;margin-bottom:5px">~$1/month @ 100 q/day</div>
+          <div class="pill pill-green" style="display:block">S3 storage: $0 free tier</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Production path -->
+  <div class="layer" style="background:#fffaf0;border-color:#f0d8a8;">
+    <div class="layer-title">
+      <div class="dot" style="background:#cc8800"></div>
+      Production Migration — One Swap Per Component
+    </div>
+    <div class="row" style="gap:12px">
+      <div class="card card-orange">
+        <div class="card-title">📁 S3 → IBM FileNet P8</div>
+        <div class="card-desc">One loader swap. FileNet REST API / CMIS replaces boto3 S3 calls. All chunking and embedding code unchanged.</div>
+      </div>
+      <div class="card card-orange">
+        <div class="card-title">🤖 Nova Lite → Claude Haiku</div>
+        <div class="card-desc">One line config change. Better reasoning for complex banking queries and regulated industry compliance.</div>
+      </div>
+      <div class="card card-orange">
+        <div class="card-title">📦 ChromaDB → pgvector</div>
+        <div class="card-desc">Scale to multi-user production on PostgreSQL RDS. Same LangChain interface — no chain code changes.</div>
+      </div>
+      <div class="card card-orange">
+        <div class="card-title">🏦 IBM watsonx (Optional)</div>
+        <div class="card-desc">Full on-premise IBM stack if data residency or enterprise licensing requires it.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech stack -->
+  <div class="layer" style="background:#f8faff;">
+    <div class="layer-title">
+      <div class="dot" style="background:#667788"></div>
+      Full Tech Stack
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px">
+      <div class="pill pill-blue">☁️ AWS S3</div>
+      <div class="pill pill-blue">🤖 AWS Bedrock</div>
+      <div class="pill pill-blue">✨ Amazon Nova Lite</div>
+      <div class="pill pill-blue">🔢 Titan Embeddings v2</div>
+      <div class="pill pill-teal">📦 ChromaDB</div>
+      <div class="pill pill-teal">🗄️ ClickHouse Cloud</div>
+      <div class="pill pill-purple">🔗 LangChain</div>
+      <div class="pill pill-purple">🐍 Python 3.9</div>
+      <div class="pill pill-purple">🌐 Streamlit</div>
+      <div class="pill pill-green">📄 pdfplumber</div>
+      <div class="pill pill-green">🖨️ AWS Textract (OCR)</div>
+      <div class="pill pill-orange">🏦 IBM FileNet P8 (Prod)</div>
+      <div class="pill pill-orange">🧠 IBM watsonx (Optional)</div>
+      <div class="pill pill-grey">🔐 IAM Role-Based Access</div>
+      <div class="pill pill-grey">📋 FCA Audit Logging</div>
+      <div class="pill pill-white">⚡ FastAPI (Planned)</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <strong>Banking AI Document Assistant</strong> &nbsp;·&nbsp;
+  Built on AWS Free Tier &nbsp;·&nbsp; POC → Production ready &nbsp;·&nbsp;
+  Dual engine: ClickHouse NL→SQL (aggregation) + ChromaDB RAG (content) &nbsp;·&nbsp;
+  Swap S3 → IBM FileNet &nbsp;·&nbsp; Nova Lite → Claude Haiku &nbsp;·&nbsp; ChromaDB → pgvector
+</div>
+
+</body>
+</html>

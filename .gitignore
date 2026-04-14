@@ -1,0 +1,24 @@
+# ── Secrets (NEVER commit these) ─────────────────────────────────────────────
+.env
+.streamlit/secrets.toml
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# ── Logs / temp ───────────────────────────────────────────────────────────────
+*.log
+*.tmp
+logs.txt
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+
+# ── chroma_db is intentionally INCLUDED in git ───────────────────────────────
+# (26 MB — needed so Streamlit Cloud has pre-built vector index on deploy)
+# Do NOT add chroma_db/ here.
