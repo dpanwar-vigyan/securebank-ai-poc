@@ -61,7 +61,7 @@ Columns:
   dispute_type    String        -- Unauthorised Transaction | Merchant Dispute | ATM Withdrawal Error |
                                 --   Duplicate Charge | Card Not Present Fraud | Direct Debit Dispute |
                                 --   Wire Transfer Error | Currency Conversion Dispute
-  dispute_amount  Nullable(Float64)
+  dispute_amount  Nullable(Float64)   -- USD amount
 
   -- Complaint-specific
   complaint_type  String        -- Poor Customer Service | Branch Service Complaint |
@@ -69,7 +69,7 @@ Columns:
                                 --   Fee Dispute | Account Closure Complaint | Staff Conduct |
                                 --   Product Mis-selling
   priority        String        -- Critical | High | Medium | Low
-  compensation_paid Nullable(Float64)
+  compensation_paid Nullable(Float64) -- USD amount
 
   -- Account Maintenance
   request_type    String        -- Address Change | Contact Number Update | Signature Update |
@@ -81,7 +81,7 @@ Columns:
 
   -- eStatement
   statement_date  Nullable(Date)
-  closing_balance Nullable(Float64)
+  closing_balance Nullable(Float64)   -- USD amount
 
   case_summary    String        -- short plain-text summary
   ingested_at     DateTime
@@ -116,6 +116,7 @@ You have been given SQL query results from the banking document database.
 Present the results clearly and professionally using markdown tables or bullet points.
 Add brief insights where relevant (e.g. peak year, top branch, trends).
 Keep it concise and banker-friendly.
+All monetary amounts are in USD — format as $X,XXX.XX where shown.
 """
 
 

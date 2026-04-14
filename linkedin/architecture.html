@@ -158,7 +158,7 @@
 <div class="header">
   <div class="tag">Solution Architecture</div>
   <h1>🏦 Banking AI Document Assistant</h1>
-  <p>From IBM FileNet documents to natural language answers — powered by RAG + AWS Bedrock</p>
+  <p>From IBM FileNet documents to natural language answers — powered by RAG + AWS Bedrock · USD currency · Live on Streamlit Cloud</p>
 </div>
 
 <div class="canvas">
@@ -200,7 +200,46 @@
   </div>
 
   <div class="arrow-down">↓</div>
-  <div class="divider">Two delivery tracks</div>
+
+  <!-- Real-time ingestion pipeline -->
+  <div class="layer" style="background:#f8faff;border-color:#c0d4f0;border-left:4px solid #0066cc;">
+    <div class="layer-title">
+      <div class="dot" style="background:#0066cc"></div>
+      Real-Time Ingestion Pipeline — Single Run, Both Stores Kept in Sync
+    </div>
+    <div class="row" style="gap:0;align-items:center">
+      <div class="card card-blue" style="flex:1;text-align:center">
+        <div class="card-title" style="justify-content:center">☁️ AWS S3</div>
+        <div class="card-desc">PDF uploaded with full metadata tags (32 fields)</div>
+      </div>
+      <div class="arrow-right" style="font-size:22px;padding:0 8px">→</div>
+      <div class="card card-blue" style="flex:1;text-align:center">
+        <div class="card-title" style="justify-content:center">🐍 ingest.py</div>
+        <div class="card-desc">Downloads PDF, extracts text, chunks 500 tokens, embeds via Titan</div>
+      </div>
+      <div class="arrow-right" style="flex-shrink:0;padding:0 8px;display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div style="font-size:11px;color:#7788aa;font-weight:700">dual write</div>
+        <div style="font-size:20px;color:#aabbcc">⇊</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;flex:2">
+        <div class="card card-purple" style="margin:0">
+          <div class="card-title">📦 ChromaDB</div>
+          <div class="card-desc">Vector chunks upserted · semantic content search · ~3,948 chunks · 256-dim embeddings</div>
+        </div>
+        <div class="card card-teal" style="margin:0">
+          <div class="card-title">🗄️ ClickHouse Cloud · ReplacingMergeTree</div>
+          <div class="card-desc">Full metadata row upserted · aggregation engine · deduplicates automatically on re-run</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:10px 14px;background:#eef4ff;border-radius:8px;border:1px solid #c0d4f0;font-size:12px;color:#334466">
+      <strong>Before:</strong> generate CSV → manually import to ClickHouse (one-off, goes stale) &nbsp;|&nbsp;
+      <strong>Now:</strong> <code style="background:#dde8ff;padding:1px 6px;border-radius:4px">python rag/ingest.py</code> → ChromaDB + ClickHouse updated together, every time, for every new document
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+  <div class="divider">Two query tracks</div>
 
   <!-- Two tracks -->
   <div class="row">
@@ -328,7 +367,7 @@
   <div class="layer">
     <div class="layer-title">
       <div class="dot" style="background:#7744cc"></div>
-      Banker-Facing Chat Interface — Streamlit
+      Banker-Facing Chat Interface — Streamlit Community Cloud (Hosted · Password Protected)
     </div>
     <div class="row" style="gap:14px">
       <div class="card card-purple" style="flex:2">
@@ -336,21 +375,23 @@
         <div class="card-desc">
           Bankers type questions in plain English. No SQL, no file browsing, no training required.
           Responses include source document citations with direct links back to PDFs in S3 / FileNet.
+          All monetary amounts displayed in <strong>USD ($)</strong>.
         </div>
         <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px">
           <div class="pill pill-purple">Intent detection</div>
           <div class="pill pill-purple">Auto metadata filters</div>
           <div class="pill pill-purple">Source citations</div>
           <div class="pill pill-purple">PDF deep links</div>
+          <div class="pill pill-purple">🔐 Password gate</div>
         </div>
       </div>
       <div class="card card-blue" style="flex:1">
-        <div class="card-title">🔐 Access Control</div>
-        <div class="card-desc">Role-based filtering — bankers only see documents within their scope.</div>
-        <div style="margin-top:10px">
-          <div class="pill pill-grey" style="display:block;margin-bottom:4px">Branch Banker → own branch</div>
-          <div class="pill pill-grey" style="display:block;margin-bottom:4px">Case Manager → assigned cases</div>
-          <div class="pill pill-grey" style="display:block">Compliance → read all</div>
+        <div class="card-title">☁️ Streamlit Community Cloud</div>
+        <div class="card-desc">Free cloud hosting. Deploys directly from GitHub. Secrets managed via Streamlit Cloud Secrets Manager — no credentials in code.</div>
+        <div style="margin-top:8px">
+          <div class="pill pill-blue" style="display:block;margin-bottom:4px">Free tier hosting</div>
+          <div class="pill pill-blue" style="display:block;margin-bottom:4px">GitHub auto-deploy</div>
+          <div class="pill pill-grey" style="display:block">st.secrets → os.environ</div>
         </div>
       </div>
       <div class="card card-teal" style="flex:1">
@@ -358,7 +399,8 @@
         <div class="card-desc">
           <div class="pill pill-teal" style="display:block;margin-bottom:5px">~$0.001 per question</div>
           <div class="pill pill-teal" style="display:block;margin-bottom:5px">~$1/month @ 100 q/day</div>
-          <div class="pill pill-green" style="display:block">S3 storage: $0 free tier</div>
+          <div class="pill pill-green" style="display:block;margin-bottom:5px">S3 storage: $0 free tier</div>
+          <div class="pill pill-green" style="display:block">Streamlit hosting: $0</div>
         </div>
       </div>
     </div>
@@ -405,15 +447,18 @@
       <div class="pill pill-blue">🔢 Titan Embeddings v2</div>
       <div class="pill pill-teal">📦 ChromaDB</div>
       <div class="pill pill-teal">🗄️ ClickHouse Cloud</div>
+      <div class="pill pill-teal">🔄 ReplacingMergeTree</div>
       <div class="pill pill-purple">🔗 LangChain</div>
       <div class="pill pill-purple">🐍 Python 3.9</div>
-      <div class="pill pill-purple">🌐 Streamlit</div>
+      <div class="pill pill-purple">🌐 Streamlit Community Cloud</div>
+      <div class="pill pill-purple">🔐 Password Gate</div>
       <div class="pill pill-green">📄 pdfplumber</div>
       <div class="pill pill-green">🖨️ AWS Textract (OCR)</div>
+      <div class="pill pill-green">💱 USD Currency</div>
       <div class="pill pill-orange">🏦 IBM FileNet P8 (Prod)</div>
       <div class="pill pill-orange">🧠 IBM watsonx (Optional)</div>
       <div class="pill pill-grey">🔐 IAM Role-Based Access</div>
-      <div class="pill pill-grey">📋 FCA Audit Logging</div>
+      <div class="pill pill-grey">📋 Audit Logging</div>
       <div class="pill pill-white">⚡ FastAPI (Planned)</div>
     </div>
   </div>
@@ -422,8 +467,9 @@
 
 <div class="footer">
   <strong>Banking AI Document Assistant</strong> &nbsp;·&nbsp;
-  Built on AWS Free Tier &nbsp;·&nbsp; POC → Production ready &nbsp;·&nbsp;
+  Built on AWS Free Tier · Hosted on Streamlit Community Cloud &nbsp;·&nbsp;
   Dual engine: ClickHouse NL→SQL (aggregation) + ChromaDB RAG (content) &nbsp;·&nbsp;
+  Real-time dual-write pipeline · USD currency · Password protected &nbsp;·&nbsp;
   Swap S3 → IBM FileNet &nbsp;·&nbsp; Nova Lite → Claude Haiku &nbsp;·&nbsp; ChromaDB → pgvector
 </div>
 

@@ -229,7 +229,8 @@
   <div class="leg-item"><div class="leg-dot" style="background:#1a4a3a"></div>ClickHouse — Aggregation</div>
   <div class="leg-item"><div class="leg-dot" style="background:#3a1a6e"></div>ChromaDB — Content RAG</div>
   <div class="leg-item"><div class="leg-dot" style="background:#aa7700"></div>Query Router</div>
-  <div class="leg-item"><div class="leg-dot" style="background:#4a3010"></div>Chat UI</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#4a3010"></div>Chat UI · Streamlit Cloud</div>
+  <div class="leg-item" style="font-size:11px;font-weight:600;color:#116633;background:#edfaf2;padding:3px 10px;border-radius:10px;border:1px solid #a8ddc0">💱 USD · 🔐 Password gate · 🔄 Dual-write pipeline</div>
   <div class="leg-item">
     <svg width="30" height="12"><line x1="0" y1="6" x2="24" y2="6" stroke="#2a5a8a" stroke-width="2" stroke-dasharray="4,2"/><polygon points="22,3 30,6 22,9" fill="#2a5a8a"/></svg>
     API call
@@ -309,13 +310,13 @@
   <div class="track track-blue" style="margin-bottom:14px">
     <div class="track-label">
       <div class="tl-dot" style="background:#0088ff"></div>
-      <span style="color:#0055aa">Track 2A — Ingestion Pipeline &nbsp;·&nbsp; One-time batch + incremental on new documents</span>
+      <span style="color:#0055aa">Track 2A — Ingestion Pipeline &nbsp;·&nbsp; Dual-write: ChromaDB + ClickHouse in one run</span>
     </div>
     <div class="steps">
       <div class="step-box s-blue">
         <div class="snum">1</div>
         <div class="stitle">📂 S3 / FileNet</div>
-        <div class="ssub">PDF binary<br>downloaded</div>
+        <div class="ssub">PDF binary +<br>32-field metadata tags</div>
       </div>
       <div class="step-arr">→</div>
       <div class="step-box s-blue">
@@ -333,24 +334,30 @@
       <div class="step-box s-blue">
         <div class="snum">4</div>
         <div class="stitle">🔢 Bedrock Titan</div>
-        <div class="ssub">256-dim vectors<br>per chunk</div>
+        <div class="ssub">256-dim vectors<br>per chunk · USD</div>
       </div>
       <div class="step-arr">→</div>
-      <div class="step-box s-purple">
-        <div class="snum">5</div>
-        <div class="stitle">📦 ChromaDB</div>
-        <div class="ssub">vector + metadata<br>upserted locally</div>
+      <div style="display:flex;flex-direction:column;gap:8px;flex:1">
+        <div class="step-box s-purple" style="flex:unset">
+          <div class="snum">5a</div>
+          <div class="stitle">📦 ChromaDB</div>
+          <div class="ssub">vector + metadata<br>upserted (content RAG)</div>
+        </div>
+        <div class="step-box s-teal" style="flex:unset">
+          <div class="snum">5b</div>
+          <div class="stitle">🗄️ ClickHouse</div>
+          <div class="ssub">metadata row upserted<br>ReplacingMergeTree</div>
+        </div>
       </div>
     </div>
-    <!-- Scanned path -->
-    <div style="margin-top:12px;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f6ff;border-radius:8px;border:1px solid #c0d4f0;font-size:11px;">
-      <span style="color:#445577;font-weight:700">Scanned PDF path:</span>
-      <span style="color:#334466">S3</span>
-      <span style="color:#aabbcc">→</span>
-      <span style="background:#0d1e33;color:#2266aa;padding:2px 8px;border-radius:5px;font-weight:600">AWS Textract OCR</span>
-      <span style="color:#aabbcc">→ extracted text joins same pipeline at step 3</span>
-      &nbsp;&nbsp;
-      <span style="margin-left:auto;color:#445566">Cost: ~$1.50 per 1,000 pages</span>
+    <!-- Notes row -->
+    <div style="margin-top:12px;display:flex;gap:10px;font-size:11px;">
+      <div style="flex:1;padding:10px 14px;background:#edfaf2;border-radius:8px;border:1px solid #b8ddc8;color:#116644">
+        <strong>🔄 Idempotent:</strong> re-running ingest.py for the same doc is safe — ChromaDB upserts, ClickHouse ReplacingMergeTree deduplicates on latest <code>ingested_at</code>
+      </div>
+      <div style="flex:1;padding:10px 14px;background:#f0f6ff;border-radius:8px;border:1px solid #c0d4f0;color:#334466">
+        <strong>🖨️ Scanned PDF path:</strong> S3 → AWS Textract OCR → joins at step 3 &nbsp;|&nbsp; Cost: ~$1.50/1,000 pages
+      </div>
     </div>
   </div>
 
@@ -484,15 +491,15 @@
           <td>Python Ingestor</td>
           <td>🟣 ChromaDB</td>
           <td><span class="tag" style="background:#f0eaff;color:#6633aa">Local gRPC</span>collection.upsert()</td>
-          <td>chunk text + embedding vector + metadata dict</td>
-          <td>Ingestion — once per chunk</td>
+          <td>chunk text + 256-dim embedding + metadata dict (USD amounts)</td>
+          <td>Ingestion — dual-write step 5a, once per chunk</td>
         </tr>
-        <tr>
+        <tr style="background:#f0fdf6">
           <td>Python Ingestor</td>
           <td>🟢 ClickHouse Cloud</td>
           <td><span class="tag" style="background:#0d1e1a;color:#33aa77">HTTPS / Native</span>clickhouse_connect.insert()</td>
-          <td>Metadata row: customer, RM, branch, case fields (32 columns)</td>
-          <td>Ingestion — all 1,000 docs</td>
+          <td>Full metadata row: 32 columns, USD Float64 amounts, typed Dates — <em>same ingest.py run as ChromaDB</em></td>
+          <td>Ingestion — dual-write step 5b, once per doc · ReplacingMergeTree deduplicates</td>
         </tr>
         <tr>
           <td>Streamlit UI</td>
@@ -601,7 +608,7 @@
             <span style="color:#556677;margin-left:auto">Same LangChain interface</span>
           </div>
           <div style="display:flex;align-items:center;gap:10px;background:#fff8ee;padding:10px 14px;border-radius:8px;border:1px solid #f0d8a8">
-            <span style="color:#556677;min-width:90px">Streamlit</span>
+            <span style="color:#556677;min-width:90px">Streamlit Cloud</span>
             <span style="color:#aabbcc">→</span>
             <span style="color:#884400">FastAPI + React</span>
             <span style="color:#556677;margin-left:auto">Same RAG chain backend</span>
@@ -668,7 +675,9 @@
 
 <div class="footer">
   <strong>Banking AI Document Assistant</strong> &nbsp;·&nbsp;
-  AWS Bedrock &nbsp;·&nbsp; IBM FileNet P8 &nbsp;·&nbsp; ClickHouse Cloud &nbsp;·&nbsp; LangChain &nbsp;·&nbsp; ChromaDB &nbsp;·&nbsp; Streamlit
+  AWS Bedrock &nbsp;·&nbsp; IBM FileNet P8 &nbsp;·&nbsp; ClickHouse Cloud (ReplacingMergeTree) &nbsp;·&nbsp;
+  LangChain &nbsp;·&nbsp; ChromaDB &nbsp;·&nbsp; Streamlit Community Cloud &nbsp;·&nbsp;
+  Dual-write pipeline &nbsp;·&nbsp; USD currency &nbsp;·&nbsp; Password protected
 </div>
 
 </body>
