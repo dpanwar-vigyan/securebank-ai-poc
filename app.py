@@ -16,8 +16,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-_LINKEDIN  = "https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/"
-_MARKETING = "https://dpanwar-vigyan.github.io/securebank-ai-poc/"
+_LINKEDIN   = "https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/"
+_MARKETING  = "https://dpanwar-vigyan.github.io/securebank-ai-poc/"
+_IT_SUPPORT = "mailto:dinesh.s.panwar@gmail.com"   # ← replace with IT service desk URL
 
 def _photo_html(size: int = 48) -> str:
     """Return an <img> tag with base64-encoded profile photo, or initial avatar."""
@@ -329,15 +330,40 @@ if "rag" not in st.session_state:
 rag: BankingRAG = st.session_state["rag"]
 
 # ---------------------------------------------------------------------------
+# Helper — IT service request mailto link with pre-filled context
+# ---------------------------------------------------------------------------
+def _it_request_link(question: str, answer: str, query_type: str, elapsed_ms: int) -> str:
+    import urllib.parse, datetime
+    path_label = "ClickHouse NL→SQL" if query_type == "clickhouse_nl_sql" else "ChromaDB RAG"
+    timestamp  = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    body = (
+        f"AskMyBank.ai — Unsatisfactory Response Report\n"
+        f"{'='*50}\n\n"
+        f"Timestamp : {timestamp}\n"
+        f"Query path: {path_label} ({elapsed_ms}ms)\n\n"
+        f"QUESTION:\n{question}\n\n"
+        f"RESPONSE (excerpt):\n{answer[:500]}{'...' if len(answer)>500 else ''}\n\n"
+        f"ISSUE DESCRIPTION:\n[Please describe what was wrong or missing]\n\n"
+        f"---\nRaised via AskMyBank.ai chat interface"
+    )
+    params = urllib.parse.urlencode({
+        "subject": f"AskMyBank.ai Support — Query Issue [{timestamp}]",
+        "body":    body,
+    })
+    return f"{_IT_SUPPORT}?{params}"
+
+
+# ---------------------------------------------------------------------------
 # Helper — render a result (works for both aggregation and content queries)
 # ---------------------------------------------------------------------------
-def render_result(result: dict):
+def render_result(result: dict, question: str = ""):
     """Render answer + table or source cards depending on query type."""
     import pandas as pd
 
     st.markdown(result["answer"])
 
-    qtype = result.get("query_type", "content")
+    qtype      = result.get("query_type", "content")
+    elapsed_ms = result.get("elapsed_ms", 0)
 
     # ── ClickHouse NL→SQL: show query + full results table ────────────────
     if qtype == "clickhouse_nl_sql":
@@ -350,7 +376,6 @@ def render_result(result: dict):
         if sql and show_filters:
             with st.expander("🔎 Generated SQL"):
                 st.code(sql, language="sql")
-        st.caption("⚡ ClickHouse — NL → SQL across full dataset")
 
     # ── Content RAG: show source cards ───────────────────────────────────
     elif result.get("sources") and show_sources:
@@ -365,7 +390,6 @@ def render_result(result: dict):
     <div><a href="{s3_url}" target="_blank">📎 View PDF in S3</a></div>
 </div>
 """, unsafe_allow_html=True)
-        st.caption("🔍 ChromaDB — semantic vector search")
 
     # ── Filters applied (content queries) ────────────────────────────────
     if show_filters and result.get("filters_applied"):
@@ -374,6 +398,28 @@ def render_result(result: dict):
             for k, v in result["filters_applied"].items()
         ])
         st.markdown(f"**Filters applied:** {badges}", unsafe_allow_html=True)
+
+    # ── Response metadata bar + IT request link ───────────────────────────
+    path_icon  = "⚡" if qtype == "clickhouse_nl_sql" else "🔍"
+    path_label = "ClickHouse NL→SQL" if qtype == "clickhouse_nl_sql" else "ChromaDB RAG"
+    elapsed_s  = f"{elapsed_ms/1000:.1f}s" if elapsed_ms >= 1000 else f"{elapsed_ms}ms"
+    it_link    = _it_request_link(question, result.get("answer",""), qtype, elapsed_ms)
+
+    st.markdown(f"""
+<div style="display:flex;align-items:center;justify-content:space-between;
+            margin-top:12px;padding:8px 12px;background:#f5f8ff;
+            border-radius:8px;border:1px solid #dde8f8;font-size:12px;color:#667788">
+  <div style="display:flex;gap:16px;align-items:center">
+    <span>{path_icon} <strong>{path_label}</strong></span>
+    <span>⏱ {elapsed_s}</span>
+  </div>
+  <a href="{it_link}"
+     style="color:#c0392b;text-decoration:none;font-weight:600;font-size:11px;
+            background:#fff0ee;border:1px solid #f5c6c0;border-radius:6px;padding:3px 10px">
+    🎫 Not satisfied? Raise IT request
+  </a>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -404,6 +450,31 @@ for msg in st.session_state["messages"]:
     <div><a href="{s3_url}" target="_blank">📎 View PDF in S3</a></div>
 </div>""", unsafe_allow_html=True)
 
+        # Replay metadata bar
+        if msg["role"] == "assistant" and msg.get("query_type"):
+            qtype      = msg.get("query_type", "content")
+            elapsed_ms = msg.get("elapsed_ms", 0)
+            question   = msg.get("question", "")
+            path_icon  = "⚡" if qtype == "clickhouse_nl_sql" else "🔍"
+            path_label = "ClickHouse NL→SQL" if qtype == "clickhouse_nl_sql" else "ChromaDB RAG"
+            elapsed_s  = f"{elapsed_ms/1000:.1f}s" if elapsed_ms >= 1000 else f"{elapsed_ms}ms"
+            it_link    = _it_request_link(question, msg.get("content",""), qtype, elapsed_ms)
+            st.markdown(f"""
+<div style="display:flex;align-items:center;justify-content:space-between;
+            margin-top:12px;padding:8px 12px;background:#f5f8ff;
+            border-radius:8px;border:1px solid #dde8f8;font-size:12px;color:#667788">
+  <div style="display:flex;gap:16px;align-items:center">
+    <span>{path_icon} <strong>{path_label}</strong></span>
+    <span>⏱ {elapsed_s}</span>
+  </div>
+  <a href="{it_link}"
+     style="color:#c0392b;text-decoration:none;font-weight:600;font-size:11px;
+            background:#fff0ee;border:1px solid #f5c6c0;border-radius:6px;padding:3px 10px">
+    🎫 Not satisfied? Raise IT request
+  </a>
+</div>
+""", unsafe_allow_html=True)
+
 # ---------------------------------------------------------------------------
 # Handle sidebar sample question click
 # ---------------------------------------------------------------------------
@@ -415,13 +486,16 @@ if "pending_query" in st.session_state:
     with st.chat_message("assistant", avatar="🏦"):
         with st.spinner("Searching documents..."):
             result = rag.ask(pending)
-        render_result(result)
+        render_result(result, question=pending)
     st.session_state["messages"].append({
-        "role":     "assistant",
-        "content":  result["answer"],
-        "sources":  result.get("sources", []),
-        "filters":  result.get("filters_applied", {}),
-        "agg_data": result.get("agg_data"),
+        "role":       "assistant",
+        "content":    result["answer"],
+        "sources":    result.get("sources", []),
+        "filters":    result.get("filters_applied", {}),
+        "agg_data":   result.get("agg_data"),
+        "query_type": result.get("query_type", "content"),
+        "elapsed_ms": result.get("elapsed_ms", 0),
+        "question":   pending,
     })
     st.rerun()
 
@@ -435,11 +509,14 @@ if prompt := st.chat_input("Ask about any customer document, case or statement..
     with st.chat_message("assistant", avatar="🏦"):
         with st.spinner("Searching documents..."):
             result = rag.ask(prompt)
-        render_result(result)
+        render_result(result, question=prompt)
     st.session_state["messages"].append({
         "role":     "assistant",
-        "content":  result["answer"],
-        "sources":  result.get("sources", []),
-        "filters":  result.get("filters_applied", {}),
-        "agg_data": result.get("agg_data"),
+        "content":    result["answer"],
+        "sources":    result.get("sources", []),
+        "filters":    result.get("filters_applied", {}),
+        "agg_data":   result.get("agg_data"),
+        "query_type": result.get("query_type", "content"),
+        "elapsed_ms": result.get("elapsed_ms", 0),
+        "question":   prompt,
     })
