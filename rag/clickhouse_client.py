@@ -141,11 +141,26 @@ class _LLM:
 # ---------------------------------------------------------------------------
 class ClickHouseNLClient:
     def __init__(self):
-        self.ch  = clickhouse_connect.get_client(
-            host=CH_HOST, user=CH_USER, password=CH_PASS, secure=True
-        )
-        self.llm = _LLM()
-        print("ClickHouse connected —", CH_HOST)
+        self.llm       = _LLM()
+        self.ch        = None
+        self.available = False
+        self._connect()
+
+    def _connect(self):
+        """Attempt to connect to ClickHouse — sets self.available = False on any failure."""
+        if not all([CH_HOST, CH_USER, CH_PASS]):
+            print("ClickHouse: credentials missing — aggregation will use ChromaDB fallback")
+            return
+        try:
+            self.ch = clickhouse_connect.get_client(
+                host=CH_HOST, user=CH_USER, password=CH_PASS,
+                secure=True, connect_timeout=8, send_receive_timeout=30,
+            )
+            self.ch.ping()          # verify connection is live
+            self.available = True
+            print("ClickHouse connected —", CH_HOST)
+        except Exception as exc:
+            print(f"ClickHouse unavailable ({exc}) — aggregation will use ChromaDB fallback")
 
     def _generate_sql(self, question: str) -> str:
         """Use Nova Lite to convert NL question → ClickHouse SQL."""
@@ -184,28 +199,44 @@ class ClickHouseNLClient:
         """
         Full NL→SQL→Execute→Format pipeline.
         Returns dict with answer, sql, rows, col_names.
+        Raises ClickHouseUnavailableError if ClickHouse is not reachable.
         """
-        # 1. Generate SQL
-        sql = self._generate_sql(question)
+        if not self.available:
+            raise ClickHouseUnavailableError("ClickHouse is not available")
 
-        # 2. Execute against ClickHouse
-        result  = self.ch.query(sql)
-        rows     = result.result_set
-        col_names = result.column_names
+        try:
+            # 1. Generate SQL
+            sql = self._generate_sql(question)
 
-        # 3. Format answer
-        answer = self._format_results(question, sql, rows, list(col_names))
+            # 2. Execute against ClickHouse
+            result    = self.ch.query(sql)
+            rows      = result.result_set
+            col_names = result.column_names
 
-        # 4. Build table data for UI
-        table_data = [dict(zip(col_names, row)) for row in rows]
+            # 3. Format answer
+            answer = self._format_results(question, sql, rows, list(col_names))
 
-        return {
-            "answer":     answer,
-            "sql":        sql,
-            "table_data": table_data,
-            "col_names":  list(col_names),
-            "row_count":  len(rows),
-            "query_type": "clickhouse_nl_sql",
-            "sources":    [],
-            "filters_applied": {},
-        }
+            # 4. Build table data for UI
+            table_data = [dict(zip(col_names, row)) for row in rows]
+
+            return {
+                "answer":          answer,
+                "sql":             sql,
+                "table_data":      table_data,
+                "col_names":       list(col_names),
+                "row_count":       len(rows),
+                "query_type":      "clickhouse_nl_sql",
+                "sources":         [],
+                "filters_applied": {},
+            }
+        except ClickHouseUnavailableError:
+            raise
+        except Exception as exc:
+            # Connection dropped mid-session — mark unavailable for future calls
+            self.available = False
+            print(f"ClickHouse query failed ({exc}) — marking unavailable")
+            raise ClickHouseUnavailableError(str(exc)) from exc
+
+
+class ClickHouseUnavailableError(Exception):
+    """Raised when ClickHouse is unreachable or the free tier has expired."""

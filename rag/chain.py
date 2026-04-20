@@ -18,7 +18,7 @@ import boto3
 import chromadb
 from chromadb.utils.embedding_functions import EmbeddingFunction
 import rag.config  # noqa: F401 — loads .env + st.secrets into os.environ
-from rag.clickhouse_client import ClickHouseNLClient
+from rag.clickhouse_client import ClickHouseNLClient, ClickHouseUnavailableError
 
 # ---------------------------------------------------------------------------
 # Config
@@ -307,7 +307,11 @@ class BankingRAG:
             embedding_function=self.embed,
             metadata={"hnsw:space": "cosine"},
         )
-        self.ch = ClickHouseNLClient()   # ClickHouse for aggregation queries
+        try:
+            self.ch = ClickHouseNLClient()   # ClickHouse for aggregation queries
+        except Exception as exc:
+            print(f"ClickHouse init failed ({exc}) — will use ChromaDB fallback for aggregations")
+            self.ch = None
         print(f"ChromaDB loaded — {self.col.count()} chunks indexed")
 
     def _build_where(self, filters: dict):
@@ -342,9 +346,32 @@ class BankingRAG:
             chunks.append({"text": doc, "meta": meta, "score": round(1 - dist, 3)})
         return chunks
 
-    # ── Aggregation path → ClickHouse NL→SQL ────────────────────────────────
+    # ── Aggregation path → ClickHouse NL→SQL (with ChromaDB fallback) ───────
     def ask_aggregation(self, query: str, filters: dict) -> dict:
-        return self.ch.ask(query)
+        # Try ClickHouse first
+        if self.ch and self.ch.available:
+            try:
+                return self.ch.ask(query)
+            except ClickHouseUnavailableError:
+                pass   # fall through to ChromaDB
+
+        # ── ChromaDB fallback ────────────────────────────────────────────────
+        agg    = run_aggregation(self.col, query, filters)
+        prompt = format_aggregation_for_llm(agg, query)
+        answer = self.llm.invoke(system=AGGREGATION_PROMPT, user=prompt)
+
+        note = (
+            "\n\n> ⚠️ **Note:** Live ClickHouse analytics are temporarily unavailable. "
+            "Results are based on the indexed document metadata."
+        )
+
+        return {
+            "answer":          answer + note,
+            "sources":         [],
+            "filters_applied": filters,
+            "query_type":      "content",   # renders without SQL panel
+            "agg_data":        agg,
+        }
 
     # ── Content RAG path ────────────────────────────────────────────────────
     def ask_content(self, query: str, filters: dict) -> dict:
