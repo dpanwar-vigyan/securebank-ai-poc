@@ -10,11 +10,14 @@ import streamlit as st
 # Page config  (must be first Streamlit call)
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="SecureBank AI Assistant",
+    page_title="AskMyBank.ai — The AI layer your bank never built",
     page_icon="🏦",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+_LINKEDIN = "https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/"
+_MARKETING = "https://dpanwar-vigyan.github.io/securebank-ai-poc/"
 
 # ---------------------------------------------------------------------------
 # Password gate — shown before anything else loads
@@ -40,17 +43,54 @@ def _check_password() -> bool:
         return True
 
     # ── Login screen ────────────────────────────────────────────────────────
-    st.markdown("""
-    <div style="max-width:440px;margin:80px auto 0;text-align:center">
-      <div style="background:linear-gradient(135deg,#003366,#0055a5);
-                  border-radius:16px;padding:36px 40px;color:white;
-                  box-shadow:0 8px 32px rgba(0,51,102,0.2)">
-        <div style="font-size:48px;margin-bottom:12px">🏦</div>
-        <h2 style="color:white;margin:0 0 6px">SecureBank AI Assistant</h2>
-        <p style="color:#aaccee;margin:0 0 24px;font-size:14px">
+    st.markdown(f"""
+    <div style="max-width:480px;margin:60px auto 0;text-align:center;font-family:'Inter',sans-serif">
+
+      <!-- Brand card -->
+      <div style="background:linear-gradient(135deg,#001f4d,#0055a5);
+                  border-radius:20px;padding:40px 44px 32px;color:white;
+                  box-shadow:0 12px 40px rgba(0,31,77,0.35)">
+        <div style="font-size:52px;margin-bottom:10px">🏦</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+                    color:#7ab8ff;margin-bottom:8px">askmybank.ai</div>
+        <h2 style="color:white;margin:0 0 8px;font-size:22px;font-weight:800;line-height:1.3">
+          The AI layer your bank<br>never built
+        </h2>
+        <p style="color:#aaccee;margin:0 0 24px;font-size:13px">
           Powered by AWS Bedrock · ClickHouse · ChromaDB RAG
         </p>
+        <div style="display:inline-block;background:rgba(255,255,255,0.08);
+                    border:1px solid rgba(255,255,255,0.15);border-radius:20px;
+                    padding:4px 14px;font-size:11px;color:#99bbdd;letter-spacing:1px">
+          A Kshetra Initiative
+        </div>
       </div>
+
+      <!-- Author strip -->
+      <div style="margin:16px 0 0;background:#f0f4fa;border-radius:12px;
+                  padding:14px 20px;display:flex;align-items:center;gap:14px;text-align:left">
+        <div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;
+                    background:linear-gradient(135deg,#0a66c2,#0e86d4);
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:18px;font-weight:800;color:white">D</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:#1a2540">Dinesh Singh Panwar</div>
+          <div style="font-size:11px;color:#667788">AI · Data · Banking Technology</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <a href="{_LINKEDIN}" target="_blank"
+             style="background:#0a66c2;color:white;text-decoration:none;
+                    padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600">
+            LinkedIn
+          </a>
+          <a href="{_MARKETING}" target="_blank"
+             style="background:#003366;color:white;text-decoration:none;
+                    padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600">
+            About ↗
+          </a>
+        </div>
+      </div>
+
     </div>
     """, unsafe_allow_html=True)
 
@@ -67,11 +107,12 @@ def _check_password() -> bool:
         st.button("Log in →", on_click=_on_submit, use_container_width=True, type="primary")
 
         if st.session_state.get("_auth_failed"):
-            st.error("Incorrect password. Contact the author on LinkedIn for access.")
+            st.error("Incorrect password — contact Dinesh on LinkedIn for access.")
 
-        st.markdown("""
-        <div style="text-align:center;margin-top:20px;color:#8899aa;font-size:12px">
-          This is a banking AI POC demo.<br>All customer data is synthetic / anonymised.
+        st.markdown(f"""
+        <div style="text-align:center;margin-top:16px;color:#8899aa;font-size:11px;line-height:1.6">
+          This is a banking AI POC demo. All customer data is synthetic &amp; anonymised.<br>
+          <a href="{_MARKETING}" target="_blank" style="color:#0055a5">View architecture &amp; documentation ↗</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -142,10 +183,31 @@ st.markdown("""
 # ---------------------------------------------------------------------------
 # Header
 # ---------------------------------------------------------------------------
-st.markdown("""
+st.markdown(f"""
 <div class="main-header">
-    <h1>🏦 SecureBank AI Assistant</h1>
-    <p>Ask questions about customer eStatements, Disputes, Complaints and Account Maintenance in plain English</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+                    color:#7ab8ff;margin-bottom:4px">askmybank.ai</div>
+        <h1 style="color:white;margin:0;font-size:1.6rem">🏦 The AI layer your bank never built</h1>
+        <p style="color:#cce0ff;margin:4px 0 0;font-size:0.9rem">
+          Ask questions about eStatements, Disputes, Complaints &amp; Account Maintenance in plain English
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <a href="{_MARKETING}" target="_blank"
+           style="background:rgba(255,255,255,0.12);color:white;text-decoration:none;
+                  padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;
+                  border:1px solid rgba(255,255,255,0.2)">
+          📖 Architecture ↗
+        </a>
+        <a href="{_LINKEDIN}" target="_blank"
+           style="background:#0a66c2;color:white;text-decoration:none;
+                  padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600">
+          in Dinesh
+        </a>
+      </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -153,6 +215,34 @@ st.markdown("""
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#001f4d,#0055a5);border-radius:12px;
+                padding:16px;color:white;margin-bottom:16px;text-align:center">
+      <div style="font-size:11px;letter-spacing:2px;color:#7ab8ff;font-weight:700;
+                  text-transform:uppercase;margin-bottom:4px">askmybank.ai</div>
+      <div style="font-size:12px;color:#aaccee;line-height:1.4">
+        The AI layer your bank never built
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;justify-content:center">
+        <a href="{_LINKEDIN}" target="_blank"
+           style="background:#0a66c2;color:white;text-decoration:none;
+                  padding:4px 12px;border-radius:6px;font-size:11px;font-weight:600">
+          in LinkedIn
+        </a>
+        <a href="{_MARKETING}" target="_blank"
+           style="background:rgba(255,255,255,0.12);color:white;text-decoration:none;
+                  padding:4px 12px;border-radius:6px;font-size:11px;font-weight:600;
+                  border:1px solid rgba(255,255,255,0.2)">
+          About ↗
+        </a>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:11px;color:#667788;margin-bottom:12px">
+      Built by <strong>Dinesh Singh Panwar</strong><br>
+      <span style="color:#99aabb">A Kshetra Initiative</span>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("### 🔍 Sample Questions")
 
     sample_questions = [
@@ -167,7 +257,7 @@ with st.sidebar:
         "What complaints were referred to the Ombudsman?",
         "What is the resolution of case CMP00047?",
         "Tell me about the mortgage complaints this year",
-        "Which customers had disputes over £5000?",
+        "Which customers had disputes over $5,000?",
         "What account maintenance did customer CUST00020 request?",
         "Summarise all product mis-selling complaints",
         "What was the outcome of the unauthorised transaction disputes?",
