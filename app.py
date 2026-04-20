@@ -16,8 +16,23 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-_LINKEDIN = "https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/"
+_LINKEDIN  = "https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/"
 _MARKETING = "https://dpanwar-vigyan.github.io/securebank-ai-poc/"
+
+def _photo_html(size: int = 48) -> str:
+    """Return an <img> tag with base64-encoded profile photo, or initial avatar."""
+    import base64
+    from pathlib import Path
+    photo = Path(__file__).parent / "assets" / "profile.jpg"
+    if photo.exists():
+        b64 = base64.b64encode(photo.read_bytes()).decode()
+        return (f'<img src="data:image/jpeg;base64,{b64}" '
+                f'style="width:{size}px;height:{size}px;border-radius:50%;'
+                f'object-fit:cover;object-position:top;border:2px solid #0a66c2">')
+    return (f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
+            f'background:linear-gradient(135deg,#0a66c2,#0e86d4);'
+            f'display:flex;align-items:center;justify-content:center;'
+            f'font-size:{size//2-4}px;font-weight:800;color:white;flex-shrink:0">D</div>')
 
 # ---------------------------------------------------------------------------
 # Password gate — shown before anything else loads
@@ -69,10 +84,7 @@ def _check_password() -> bool:
       <!-- Author strip -->
       <div style="margin:16px 0 0;background:#f0f4fa;border-radius:12px;
                   padding:14px 20px;display:flex;align-items:center;gap:14px;text-align:left">
-        <div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;
-                    background:linear-gradient(135deg,#0a66c2,#0e86d4);
-                    display:flex;align-items:center;justify-content:center;
-                    font-size:18px;font-weight:800;color:white">D</div>
+        {_photo_html(42)}
         <div style="flex:1">
           <div style="font-size:13px;font-weight:700;color:#1a2540">Dinesh Singh Panwar</div>
           <div style="font-size:11px;color:#667788">AI · Data · Banking Technology</div>
@@ -107,12 +119,28 @@ def _check_password() -> bool:
         st.button("Log in →", on_click=_on_submit, use_container_width=True, type="primary")
 
         if st.session_state.get("_auth_failed"):
-            st.error("Incorrect password — contact Dinesh on LinkedIn for access.")
+            st.markdown(f"""
+            <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;
+                        padding:10px 14px;margin-top:8px;font-size:12px;color:#7a5c00;text-align:center">
+              Incorrect password —
+              <a href="{_LINKEDIN}" target="_blank" style="color:#0a66c2;font-weight:600">
+                contact Dinesh on LinkedIn
+              </a> to request access.
+            </div>
+            """, unsafe_allow_html=True)
 
         st.markdown(f"""
-        <div style="text-align:center;margin-top:16px;color:#8899aa;font-size:11px;line-height:1.6">
-          This is a banking AI POC demo. All customer data is synthetic &amp; anonymised.<br>
-          <a href="{_MARKETING}" target="_blank" style="color:#0055a5">View architecture &amp; documentation ↗</a>
+        <div style="background:#eef4ff;border-radius:10px;padding:14px 18px;
+                    margin-top:16px;text-align:center;font-size:12px;color:#445566;line-height:1.7">
+          🔐 <strong>Need access?</strong> This is a private banking AI demo.<br>
+          <a href="{_LINKEDIN}" target="_blank"
+             style="color:#0a66c2;font-weight:600;text-decoration:none">
+            → Message Dinesh on LinkedIn to request the demo password
+          </a><br><br>
+          <span style="color:#99aabb;font-size:11px">
+            All customer data is synthetic &amp; anonymised ·
+            <a href="{_MARKETING}" target="_blank" style="color:#0055a5">View architecture ↗</a>
+          </span>
         </div>
         """, unsafe_allow_html=True)
 
