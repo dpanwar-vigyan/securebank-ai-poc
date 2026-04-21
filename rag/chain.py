@@ -431,12 +431,8 @@ Please answer based only on the context above. Cite document IDs in your respons
     # ── Main entry point ────────────────────────────────────────────────────
     def ask(self, query: str) -> dict:
         filters = extract_filters(query)
-        t0 = time.time()
 
         if is_aggregation_query(query):
-            result = self.ask_aggregation(query, filters)
+            return self.ask_aggregation(query, filters)
         else:
-            result = self.ask_content(query, filters)
-
-        result["elapsed_ms"] = round((time.time() - t0) * 1000)
-        return result
+            return self.ask_content(query, filters)

@@ -4,6 +4,7 @@ Run: streamlit run app.py
 """
 
 import os
+import time
 import streamlit as st
 
 # ---------------------------------------------------------------------------
@@ -400,8 +401,12 @@ def render_result(result: dict, question: str = ""):
         st.markdown(f"**Filters applied:** {badges}", unsafe_allow_html=True)
 
     # ── Response metadata bar + IT request link ───────────────────────────
+    cached     = result.get("sql_cached", False)
     path_icon  = "⚡" if qtype == "clickhouse_nl_sql" else "🔍"
-    path_label = "ClickHouse NL→SQL" if qtype == "clickhouse_nl_sql" else "ChromaDB RAG"
+    if qtype == "clickhouse_nl_sql":
+        path_label = "ClickHouse NL→SQL" + (" · SQL cached ⚡" if cached else " · SQL generated")
+    else:
+        path_label = "ChromaDB RAG"
     elapsed_s  = f"{elapsed_ms/1000:.1f}s" if elapsed_ms >= 1000 else f"{elapsed_ms}ms"
     it_link    = _it_request_link(question, result.get("answer",""), qtype, elapsed_ms)
 
@@ -485,7 +490,9 @@ if "pending_query" in st.session_state:
         st.markdown(pending)
     with st.chat_message("assistant", avatar="🏦"):
         with st.spinner("Searching documents..."):
+            _t0 = time.time()
             result = rag.ask(pending)
+            result["elapsed_ms"] = round((time.time() - _t0) * 1000)
         render_result(result, question=pending)
     st.session_state["messages"].append({
         "role":       "assistant",
@@ -508,7 +515,9 @@ if prompt := st.chat_input("Ask about any customer document, case or statement..
         st.markdown(prompt)
     with st.chat_message("assistant", avatar="🏦"):
         with st.spinner("Searching documents..."):
+            _t0 = time.time()
             result = rag.ask(prompt)
+            result["elapsed_ms"] = round((time.time() - _t0) * 1000)
         render_result(result, question=prompt)
     st.session_state["messages"].append({
         "role":     "assistant",

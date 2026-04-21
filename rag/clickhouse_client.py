@@ -13,6 +13,10 @@ import boto3
 import clickhouse_connect
 import rag.config  # noqa: F401 — loads .env + st.secrets into os.environ
 
+# Module-level SQL cache — persists for the lifetime of the Streamlit process
+# Key: normalised question string  Value: generated SQL
+_SQL_CACHE: dict[str, str] = {}
+
 # ---------------------------------------------------------------------------
 # Config  (os.environ already populated by rag.config on import)
 # ---------------------------------------------------------------------------
@@ -162,8 +166,14 @@ class ClickHouseNLClient:
         except Exception as exc:
             print(f"ClickHouse unavailable ({exc}) — aggregation will use ChromaDB fallback")
 
-    def _generate_sql(self, question: str) -> str:
-        """Use Nova Lite to convert NL question → ClickHouse SQL."""
+    def _generate_sql(self, question: str) -> tuple[str, bool]:
+        """Use Nova Lite to convert NL question → ClickHouse SQL.
+        Returns (sql, cache_hit) — cache_hit=True means Bedrock was NOT called."""
+        cache_key = re.sub(r"\s+", " ", question.lower().strip())
+        if cache_key in _SQL_CACHE:
+            print(f"SQL cache hit: {cache_key[:60]}")
+            return _SQL_CACHE[cache_key], True
+
         sql = self.llm.invoke(
             system=NL_TO_SQL_PROMPT,
             user=f"Question: {question}\n\nSQL query:",
@@ -174,7 +184,9 @@ class ClickHouseNLClient:
         # Safety: reject any mutating statements
         if re.search(r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE)\b", sql, re.IGNORECASE):
             raise ValueError(f"Unsafe SQL generated: {sql}")
-        return sql
+
+        _SQL_CACHE[cache_key] = sql
+        return sql, False
 
     def _format_results(self, question: str, sql: str, rows: list, col_names: list) -> str:
         """Use Nova Lite to format raw results into a readable answer."""
@@ -205,8 +217,8 @@ class ClickHouseNLClient:
             raise ClickHouseUnavailableError("ClickHouse is not available")
 
         try:
-            # 1. Generate SQL
-            sql = self._generate_sql(question)
+            # 1. Generate SQL (cache checked inside)
+            sql, cache_hit = self._generate_sql(question)
 
             # 2. Execute against ClickHouse
             result    = self.ch.query(sql)
@@ -222,6 +234,7 @@ class ClickHouseNLClient:
             return {
                 "answer":          answer,
                 "sql":             sql,
+                "sql_cached":      cache_hit,
                 "table_data":      table_data,
                 "col_names":       list(col_names),
                 "row_count":       len(rows),
