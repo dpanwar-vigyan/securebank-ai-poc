@@ -1,10 +1,14 @@
 """
-RAG Chain — ChromaDB + ClickHouse + Bedrock Nova Lite
+RAG Chain — ChromaDB/Pinecone + ClickHouse + Bedrock Nova Lite
 
 Query routing:
   1. aggregation  → ClickHouse NL→SQL  (counts, trends, breakdowns across ALL docs)
-  2. content_qa   → ChromaDB vector RAG (what did customer say, summarise case)
-  3. lookup       → ChromaDB filtered RAG (show complaints from Leeds)
+  2. content_qa   → vector RAG (what did customer say, summarise case)
+  3. lookup       → filtered RAG (show complaints from Leeds)
+
+Vector backend (auto-selected):
+  • PINECONE_API_KEY set  → Pinecone serverless (Lambda-compatible)
+  • otherwise             → ChromaDB local (current default, unchanged)
 """
 
 import json
@@ -19,6 +23,7 @@ import chromadb
 from chromadb.utils.embedding_functions import EmbeddingFunction
 import rag.config  # noqa: F401 — loads .env + st.secrets into os.environ
 from rag.clickhouse_client import ClickHouseNLClient, ClickHouseUnavailableError
+from rag.pinecone_retriever import PineconeRetriever, PineconeUnavailableError
 
 # ---------------------------------------------------------------------------
 # Config
@@ -299,20 +304,35 @@ def format_aggregation_for_llm(agg: dict, query: str) -> str:
 # ---------------------------------------------------------------------------
 class BankingRAG:
     def __init__(self):
+        self.embed = BedrockEmbeddings()
+        self.llm   = BedrockLLM()
+
+        # ── Vector backend: Pinecone if key present, else ChromaDB ────────────
+        self.pinecone = None
+        if os.getenv("PINECONE_API_KEY"):
+            try:
+                self.pinecone = PineconeRetriever(embed_fn=self.embed)
+                print("Vector backend: Pinecone ✅")
+            except Exception as exc:
+                print(f"Pinecone init failed ({exc}) — falling back to ChromaDB")
+
+        # Always init ChromaDB: used as fallback for vector search AND
+        # for the aggregation metadata scan when ClickHouse is unavailable.
         self.chroma = chromadb.PersistentClient(path=CHROMA_PATH)
-        self.embed  = BedrockEmbeddings()
-        self.llm    = BedrockLLM()
         self.col    = self.chroma.get_or_create_collection(
             name=COLLECTION,
             embedding_function=self.embed,
             metadata={"hnsw:space": "cosine"},
         )
+        backend = "Pinecone" if self.pinecone else "ChromaDB"
+        print(f"Vector backend active: {backend} | ChromaDB chunks: {self.col.count()}")
+
+        # ── ClickHouse for aggregation queries ────────────────────────────────
         try:
-            self.ch = ClickHouseNLClient()   # ClickHouse for aggregation queries
+            self.ch = ClickHouseNLClient()
         except Exception as exc:
             print(f"ClickHouse init failed ({exc}) — will use ChromaDB fallback for aggregations")
             self.ch = None
-        print(f"ChromaDB loaded — {self.col.count()} chunks indexed")
 
     def _build_where(self, filters: dict):
         if not filters:
@@ -323,6 +343,16 @@ class BankingRAG:
         return {"$and": [{k: {"$eq": v}} for k, v in filters.items()]}
 
     def retrieve(self, query: str, filters: dict) -> list[dict]:
+        # ── Try Pinecone first (if configured) ────────────────────────────────
+        if self.pinecone:
+            try:
+                chunks = self.pinecone.retrieve(query, filters)
+                if chunks:
+                    return chunks
+            except Exception as exc:
+                print(f"Pinecone retrieve failed ({exc}) — falling back to ChromaDB")
+
+        # ── ChromaDB fallback (always available) ──────────────────────────────
         where = self._build_where(filters)
         try:
             results = self.col.query(

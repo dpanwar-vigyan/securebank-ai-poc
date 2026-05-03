@@ -11,3 +11,4 @@ faker>=25.0.0
 reportlab>=4.0.0
 python-dotenv>=1.0.0
 clickhouse-connect>=0.7.0
+pinecone>=3.0.0            # optional — only used when PINECONE_API_KEY is set
