@@ -1,0 +1,153 @@
+{
+  "name": "dispute_resolution_v1",
+  "description": "SecureBank AI — Durable dispute resolution with AI classification, RM assignment, SLA enforcement and ClickHouse writeback",
+  "version": 1,
+  "tasks": [
+    {
+      "name": "classify_dispute",
+      "taskReferenceName": "classify_dispute",
+      "type": "HTTP",
+      "inputParameters": {
+        "uri": "${workflow.input.bedrock_classify_url}",
+        "method": "POST",
+        "body": {
+          "doc_id":        "${workflow.input.doc_id}",
+          "case_summary":  "${workflow.input.case_summary}",
+          "priority":      "${workflow.input.priority}",
+          "amount":        "${workflow.input.dispute_amount}"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "description": "Use Nova Lite via HTTP worker to classify severity and recommended action"
+    },
+    {
+      "name": "notify_rm",
+      "taskReferenceName": "notify_rm",
+      "type": "HTTP",
+      "inputParameters": {
+        "uri": "${workflow.input.notify_worker_url}",
+        "method": "POST",
+        "body": {
+          "rm_email":      "${workflow.input.rm_email}",
+          "rm_name":       "${workflow.input.rm_name}",
+          "doc_id":        "${workflow.input.doc_id}",
+          "customer_id":   "${workflow.input.customer_id}",
+          "case_summary":  "${workflow.input.case_summary}",
+          "severity":      "${classify_dispute.output.severity}",
+          "workflow_id":   "${workflow.workflowId}"
+        }
+      },
+      "description": "Send email/Slack notification to RM with case context and acknowledgement link"
+    },
+    {
+      "name": "wait_for_rm_ack",
+      "taskReferenceName": "wait_for_rm_ack",
+      "type": "WAIT",
+      "inputParameters": {
+        "duration": "PT24H"
+      },
+      "description": "Durable wait up to 24 hours for RM acknowledgement signal. Survives restarts."
+    },
+    {
+      "name": "check_ack_received",
+      "taskReferenceName": "check_ack_received",
+      "type": "SWITCH",
+      "expression": "${workflow.input.rm_acknowledged == true ? 'ACK_RECEIVED' : 'TIMED_OUT'}",
+      "decisionCases": {
+        "ACK_RECEIVED": [
+          {
+            "name": "rm_resolution_task",
+            "taskReferenceName": "rm_resolution_task",
+            "type": "HUMAN",
+            "inputParameters": {
+              "title":        "Dispute Resolution Required",
+              "assignee":     "${workflow.input.rm_email}",
+              "doc_id":       "${workflow.input.doc_id}",
+              "customer_id":  "${workflow.input.customer_id}",
+              "case_summary": "${workflow.input.case_summary}",
+              "amount":       "${workflow.input.dispute_amount}",
+              "severity":     "${classify_dispute.output.severity}"
+            },
+            "description": "RM submits resolution decision via Orkes Human Task or Appian form"
+          },
+          {
+            "name": "ai_compliance_check",
+            "taskReferenceName": "ai_compliance_check",
+            "type": "HTTP",
+            "inputParameters": {
+              "uri": "${workflow.input.compliance_worker_url}",
+              "method": "POST",
+              "body": {
+                "resolution":    "${rm_resolution_task.output.resolution}",
+                "rationale":     "${rm_resolution_task.output.rationale}",
+                "amount":        "${rm_resolution_task.output.refund_amount}",
+                "case_summary":  "${workflow.input.case_summary}"
+              }
+            },
+            "description": "Nova Lite validates resolution rationale meets FCA/APRA guidelines"
+          },
+          {
+            "name": "update_clickhouse",
+            "taskReferenceName": "update_clickhouse",
+            "type": "HTTP",
+            "inputParameters": {
+              "uri": "${workflow.input.clickhouse_worker_url}",
+              "method": "POST",
+              "body": {
+                "doc_id":        "${workflow.input.doc_id}",
+                "case_status":   "Closed-Won",
+                "resolution":    "${rm_resolution_task.output.resolution}",
+                "closed_date":   "${workflow.startTime}",
+                "refund_amount": "${rm_resolution_task.output.refund_amount}"
+              }
+            },
+            "description": "Write final case outcome back to ClickHouse banking_docs.documents"
+          }
+        ],
+        "TIMED_OUT": [
+          {
+            "name": "escalate_to_manager",
+            "taskReferenceName": "escalate_to_manager",
+            "type": "HUMAN",
+            "inputParameters": {
+              "title":       "ESCALATION: RM did not respond within 24h",
+              "assignee":    "${workflow.input.branch_manager_email}",
+              "doc_id":      "${workflow.input.doc_id}",
+              "rm_name":     "${workflow.input.rm_name}",
+              "case_summary": "${workflow.input.case_summary}"
+            },
+            "description": "Branch manager escalation task — 48h SLA"
+          },
+          {
+            "name": "update_clickhouse_escalated",
+            "taskReferenceName": "update_clickhouse_escalated",
+            "type": "HTTP",
+            "inputParameters": {
+              "uri": "${workflow.input.clickhouse_worker_url}",
+              "method": "POST",
+              "body": {
+                "doc_id":      "${workflow.input.doc_id}",
+                "case_status": "Referred to Ombudsman",
+                "resolution":  "Escalated to Ombudsman"
+              }
+            }
+          }
+        ]
+      },
+      "defaultCase": []
+    }
+  ],
+  "outputParameters": {
+    "final_status":     "${update_clickhouse.output.status}",
+    "resolution":       "${rm_resolution_task.output.resolution}",
+    "compliance_pass":  "${ai_compliance_check.output.passed}"
+  },
+  "failureWorkflow": "",
+  "restartable": true,
+  "workflowStatusListenerEnabled": true,
+  "ownerEmail": "dinesh.s.panwar@gmail.com",
+  "timeoutPolicy": "TIME_OUT_WF",
+  "timeoutSeconds": 604800
+}

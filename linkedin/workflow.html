@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow Orchestration · SecureBank AI</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0b1120;
+      color: #e2e8f0;
+      line-height: 1.6;
+      padding: 40px 32px;
+    }
+
+    /* ── Sticky Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(11,17,32,0.96);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 20px;
+      margin: -40px -32px 40px -32px;
+    }
+    .nav-brand { font-weight: 700; font-size: 1rem; color: #fff; margin-right: auto; text-decoration: none; }
+    .nav-brand span { color: #60a5fa; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 0.82rem; padding: 4px 10px; border-radius: 5px; transition: all 0.2s; }
+    nav a:hover { color: #fff; background: rgba(255,255,255,0.07); }
+    nav a.active { color: #60a5fa; background: rgba(96,165,250,0.1); }
+    .topnav-author {
+      display: flex; align-items: center; gap: 8px;
+      color: #94a3b8; text-decoration: none; font-size: 0.82rem;
+      padding: 4px 10px; border-radius: 5px; transition: all 0.2s;
+      margin-left: 8px;
+    }
+    .topnav-author:hover { color: #fff; background: rgba(255,255,255,0.07); }
+    .avatar {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700; color: #fff;
+    }
+    .demo-btn {
+      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+      color: #fff !important; padding: 5px 14px !important;
+      border-radius: 6px; font-weight: 600;
+    }
+
+    /* ── Page Header ── */
+    .page-header { margin-bottom: 40px; }
+    .section-label {
+      font-size: 0.7rem; letter-spacing: 0.12em; font-weight: 700;
+      color: #60a5fa; text-transform: uppercase; margin-bottom: 10px;
+    }
+    .section-label::after {
+      content: ''; display: inline-block; width: 60px; height: 1px;
+      background: #60a5fa; vertical-align: middle; margin-left: 10px; opacity: 0.5;
+    }
+    h1 { font-size: 1.9rem; font-weight: 800; color: #fff; line-height: 1.2; }
+    h1 span { color: #60a5fa; }
+    .subtitle { margin-top: 10px; color: #94a3b8; font-size: 0.95rem; max-width: 680px; }
+
+    /* ── Layout ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 32px; }
+    @media(max-width:900px) { .two-col, .three-col { grid-template-columns: 1fr; } }
+
+    /* ── Cards ── */
+    .card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 22px 24px;
+    }
+    .card h3 { font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .card p, .card li { font-size: 0.83rem; color: #94a3b8; line-height: 1.6; }
+    .card ul { padding-left: 16px; }
+    .card li { margin-bottom: 4px; }
+
+    /* ── Platform badges ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.72rem; font-weight: 600; padding: 3px 9px;
+      border-radius: 20px; white-space: nowrap;
+    }
+    .badge-blue   { background: rgba(59,130,246,0.15);  color: #60a5fa;  border: 1px solid rgba(59,130,246,0.3); }
+    .badge-purple { background: rgba(139,92,246,0.15);  color: #a78bfa;  border: 1px solid rgba(139,92,246,0.3); }
+    .badge-green  { background: rgba(34,197,94,0.15);   color: #4ade80;  border: 1px solid rgba(34,197,94,0.3);  }
+    .badge-orange { background: rgba(251,146,60,0.15);  color: #fb923c;  border: 1px solid rgba(251,146,60,0.3); }
+    .badge-gray   { background: rgba(148,163,184,0.1);  color: #94a3b8;  border: 1px solid rgba(148,163,184,0.2);}
+
+    /* ── Section headers ── */
+    .section-h { font-size: 0.7rem; letter-spacing: 0.12em; font-weight: 700;
+      color: #60a5fa; text-transform: uppercase; margin: 36px 0 18px; display: flex; align-items: center; gap: 10px; }
+    .section-h::after { content:''; flex:1; height:1px; background:rgba(255,255,255,0.07); }
+
+    /* ── Workflow Diagram ── */
+    .workflow-container {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px; padding: 32px 24px; margin-bottom: 32px;
+    }
+    .workflow-title { font-size: 0.75rem; font-weight: 700; color: #60a5fa; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 28px; }
+
+    /* Main flow */
+    .flow-row { display: flex; align-items: stretch; gap: 0; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 8px; }
+    .flow-step {
+      flex: 1; min-width: 130px; max-width: 180px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; padding: 14px 12px; text-align: center; position: relative;
+    }
+    .flow-step .step-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: #1d4ed8; color: #fff; font-size: 0.65rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 8px;
+    }
+    .flow-step .step-icon { font-size: 1.4rem; margin-bottom: 6px; }
+    .flow-step .step-label { font-size: 0.72rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .flow-step .step-sub { font-size: 0.65rem; color: #64748b; }
+    .flow-step .step-platform { margin-top: 8px; }
+
+    .flow-arrow {
+      display: flex; align-items: center; padding: 0 6px; color: #334155;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+
+    /* Branch paths */
+    .branch-container { margin: 20px 0; position: relative; }
+    .branch-label { font-size: 0.68rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; text-align: center; }
+    .branch-row { display: flex; gap: 16px; }
+    .branch-path {
+      flex: 1; background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 14px;
+    }
+    .branch-path.success { border-color: rgba(34,197,94,0.25); background: rgba(34,197,94,0.04); }
+    .branch-path.escalate { border-color: rgba(251,146,60,0.25); background: rgba(251,146,60,0.04); }
+    .branch-path.fail    { border-color: rgba(239,68,68,0.25);   background: rgba(239,68,68,0.04);  }
+    .branch-path h4 { font-size: 0.72rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .branch-path.success h4 { color: #4ade80; }
+    .branch-path.escalate h4 { color: #fb923c; }
+    .branch-path.fail h4    { color: #f87171; }
+    .branch-step {
+      background: rgba(255,255,255,0.05); border-radius: 7px;
+      padding: 8px 10px; margin-bottom: 8px; font-size: 0.7rem; color: #cbd5e1;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .branch-step:last-child { margin-bottom: 0; }
+
+    /* Wait indicator */
+    .wait-box {
+      background: rgba(234,179,8,0.08); border: 1px dashed rgba(234,179,8,0.3);
+      border-radius: 8px; padding: 12px 16px; margin: 12px 0;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .wait-box .wait-icon { font-size: 1.3rem; }
+    .wait-box .wait-text { font-size: 0.75rem; }
+    .wait-box .wait-text strong { color: #fbbf24; display: block; margin-bottom: 2px; }
+    .wait-box .wait-text span { color: #64748b; }
+
+    /* ── Comparison Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 4px; }
+    th { text-align: left; padding: 8px 12px; color: #64748b; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #cbd5e1; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .check { color: #4ade80; }
+    .cross { color: #f87171; }
+    .partial { color: #fbbf24; }
+
+    /* ── Code block ── */
+    .code-block {
+      background: #0f172a; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px; padding: 20px 22px; margin-top: 12px;
+      overflow-x: auto;
+    }
+    .code-block pre { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; color: #e2e8f0; line-height: 1.7; }
+    .code-comment { color: #475569; }
+    .code-key     { color: #60a5fa; }
+    .code-str     { color: #a78bfa; }
+    .code-num     { color: #fb923c; }
+    .code-kw      { color: #34d399; }
+
+    /* ── Roadmap ── */
+    .roadmap-item {
+      display: flex; gap: 16px; padding: 14px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .roadmap-item:last-child { border-bottom: none; }
+    .roadmap-phase {
+      width: 80px; flex-shrink: 0; font-size: 0.68rem; font-weight: 700;
+      color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 2px;
+    }
+    .roadmap-content h4 { font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .roadmap-content p  { font-size: 0.78rem; color: #64748b; }
+
+    /* ── Footer ── */
+    footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.07); text-align: center; color: #475569; font-size: 0.78rem; }
+    footer a { color: #475569; }
+    footer a:hover { color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <a class="nav-brand" href="../index.html">Secure<span>Bank AI</span></a>
+  <a href="../index.html">Home</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="interactions.html">Interactions</a>
+  <a href="workflow.html" class="active">Workflow</a>
+  <a href="https://github.com/dpanwar-vigyan/securebank-ai-poc" target="_blank" rel="noopener">GitHub ↗</a>
+  <a href="https://askmybank.ai" target="_blank" rel="noopener" class="demo-btn">🚀 Live Demo</a>
+  <a class="topnav-author" href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank" rel="noopener">
+    <div class="avatar">D</div>
+    <span>Dinesh Singh Panwar</span>
+  </a>
+</nav>
+
+<!-- ── Header ── -->
+<div class="page-header">
+  <div class="section-label">Intelligent Case Orchestration</div>
+  <h1>AI Discovery + <span>Durable Workflow</span></h1>
+  <p class="subtitle">
+    AskMyBank.ai surfaces a case instantly — but then what? This layer adds durable, auditable
+    orchestration: auto-assign, escalate, resolve, and close — all trackable, all retryable.
+  </p>
+</div>
+
+<!-- ── The Gap ── -->
+<div class="section-h">The Problem</div>
+<div class="two-col">
+  <div class="card">
+    <h3>❌ Without Orchestration</h3>
+    <ul>
+      <li>Banker finds dispute via AskMyBank.ai</li>
+      <li>Manually emails the RM</li>
+      <li>Chases via phone if no response</li>
+      <li>No audit trail of who acted when</li>
+      <li>SLA breaches go undetected</li>
+      <li>Escalation is ad hoc and inconsistent</li>
+      <li>Case status updated manually in spreadsheets</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>✅ With Orchestration</h3>
+    <ul>
+      <li>Banker queries → workflow auto-triggered</li>
+      <li>RM notified automatically with full context</li>
+      <li>24h timer set — escalates if no acknowledgement</li>
+      <li>Full audit trail persisted durably</li>
+      <li>SLA clock visible in real time</li>
+      <li>Escalation chain is codified and consistent</li>
+      <li>Case status synced to ClickHouse automatically</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── Platform Comparison ── -->
+<div class="section-h">Platform Selection</div>
+<div class="card" style="margin-bottom:24px;">
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>Model</th>
+        <th>Human Tasks</th>
+        <th>Python SDK</th>
+        <th>Free Tier</th>
+        <th>Best For</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Orkes Cloud</strong> <span class="badge badge-green" style="margin-left:6px;">Recommended</span></td>
+        <td>Hosted Conductor (Netflix OSS)</td>
+        <td class="check">✓ Built-in</td>
+        <td class="check">✓</td>
+        <td class="check">✓ Developer tier</td>
+        <td>Visual editor + quick start</td>
+      </tr>
+      <tr>
+        <td><strong>Temporal Cloud</strong></td>
+        <td>Hosted Temporal OSS</td>
+        <td class="partial">~ Via UI only</td>
+        <td class="check">✓</td>
+        <td class="check">✓ 5M actions/mo</td>
+        <td>Code-first, high volume</td>
+      </tr>
+      <tr>
+        <td><strong>Appian</strong></td>
+        <td>Low-code BPM platform</td>
+        <td class="check">✓ Native forms</td>
+        <td class="cross">✗</td>
+        <td class="partial">~ Community (3 users)</td>
+        <td>Business users, regulated workflows</td>
+      </tr>
+      <tr>
+        <td><strong>Temporal OSS</strong></td>
+        <td>Self-hosted Docker</td>
+        <td class="cross">✗</td>
+        <td class="check">✓</td>
+        <td class="check">✓ Free</td>
+        <td>Dev/test, full control</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Workflow Diagram ── -->
+<div class="section-h">Dispute Resolution Workflow</div>
+<div class="workflow-container">
+  <div class="workflow-title">🔄 End-to-End Flow — Triggered from AskMyBank.ai</div>
+
+  <!-- Phase 1: Trigger -->
+  <div class="section-label" style="margin-bottom:12px;">Phase 1 · Discovery &amp; Trigger</div>
+  <div class="flow-row">
+    <div class="flow-step">
+      <div class="step-num">1</div>
+      <div class="step-icon">💬</div>
+      <div class="step-label">Banker Queries</div>
+      <div class="step-sub">AskMyBank.ai NL query</div>
+      <div class="step-platform"><span class="badge badge-blue">AskMyBank</span></div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-num">2</div>
+      <div class="step-icon">📄</div>
+      <div class="step-label">Case Surfaced</div>
+      <div class="step-sub">ChromaDB + ClickHouse</div>
+      <div class="step-platform"><span class="badge badge-blue">RAG Engine</span></div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step" style="border-color:rgba(139,92,246,0.4);">
+      <div class="step-num" style="background:#7c3aed;">3</div>
+      <div class="step-icon">🚀</div>
+      <div class="step-label">Start Workflow</div>
+      <div class="step-sub">POST /workflow with case payload</div>
+      <div class="step-platform"><span class="badge badge-purple">Orkes API</span></div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step" style="border-color:rgba(139,92,246,0.4);">
+      <div class="step-num" style="background:#7c3aed;">4</div>
+      <div class="step-icon">🔍</div>
+      <div class="step-label">AI Classify</div>
+      <div class="step-sub">Nova Lite: severity + category</div>
+      <div class="step-platform"><span class="badge badge-purple">Bedrock Task</span></div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step" style="border-color:rgba(139,92,246,0.4);">
+      <div class="step-num" style="background:#7c3aed;">5</div>
+      <div class="step-icon">👤</div>
+      <div class="step-label">Auto-Assign RM</div>
+      <div class="step-sub">Lookup from metadata</div>
+      <div class="step-platform"><span class="badge badge-purple">Orkes Task</span></div>
+    </div>
+  </div>
+
+  <!-- Phase 2: Human Wait -->
+  <div class="section-label" style="margin: 24px 0 12px;">Phase 2 · RM Acknowledgement (Durable Wait)</div>
+  <div class="wait-box">
+    <div class="wait-icon">⏳</div>
+    <div class="wait-text">
+      <strong>WAIT_FOR_SIGNAL — "rm_acknowledged" (timeout: 24 hours)</strong>
+      <span>Workflow pauses here durably. No polling. No lost state. If Orkes restarts, timer survives.</span>
+    </div>
+    <span class="badge badge-orange" style="margin-left:auto; flex-shrink:0;">SLA Clock Running</span>
+  </div>
+
+  <!-- Branch -->
+  <div class="branch-label" style="margin-top:16px;">⤵ Branch on signal received</div>
+  <div class="branch-row">
+    <div class="branch-path success">
+      <h4>✓ RM Acknowledged (within 24h)</h4>
+      <div class="branch-step">🏦 RM opens Appian task form with full case context</div>
+      <div class="branch-step">📝 RM submits resolution: Resolved / Partial Refund / Escalate</div>
+      <div class="branch-step">🤖 AI compliance check — Nova Lite validates resolution rationale</div>
+      <div class="branch-step">💾 Update ClickHouse: case_status, resolution, closed_date</div>
+      <div class="branch-step">📧 Notify customer (simulated email task)</div>
+      <div class="branch-step">✅ Workflow complete — case closed</div>
+    </div>
+    <div class="branch-path escalate">
+      <h4>⚠ No Response (24h timeout)</h4>
+      <div class="branch-step">🔔 Escalate to Branch Manager — new Appian task</div>
+      <div class="branch-step">⏳ Wait 48h for branch manager decision</div>
+      <div class="branch-step">📋 If still no response → auto-refer to Ombudsman</div>
+      <div class="branch-step">💾 Update ClickHouse: case_status = "Referred to Ombudsman"</div>
+      <div class="branch-step">📧 Regulatory notification task triggered</div>
+    </div>
+    <div class="branch-path fail">
+      <h4>✗ Resolution Rejected by AI Check</h4>
+      <div class="branch-step">🔁 Return to RM for re-submission with AI feedback</div>
+      <div class="branch-step">⏳ Max 2 retry loops</div>
+      <div class="branch-step">📋 After 2 failures → mandatory senior review</div>
+      <div class="branch-step">💾 Audit trail preserved with all attempts</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Architecture Layers ── -->
+<div class="section-h">System Architecture</div>
+<div class="three-col">
+  <div class="card">
+    <h3>🧠 Intelligence Layer <span class="badge badge-blue" style="margin-left:4px;">Existing</span></h3>
+    <ul>
+      <li>ChromaDB — vector search over 1,000 docs</li>
+      <li>ClickHouse — SQL aggregations &amp; case data</li>
+      <li>Amazon Bedrock Nova Lite — NL→SQL + QA</li>
+      <li>Titan Embeddings v2 — semantic search</li>
+    </ul>
+    <p style="margin-top:10px; font-size:0.75rem; color:#475569;">No changes needed — workflow calls existing RAG API</p>
+  </div>
+  <div class="card" style="border-color:rgba(139,92,246,0.3);">
+    <h3>⚙️ Orchestration Layer <span class="badge badge-purple" style="margin-left:4px;">New</span></h3>
+    <ul>
+      <li>Orkes Cloud — workflow engine (free dev tier)</li>
+      <li>Workers — Python tasks running in banking-poc</li>
+      <li>Signals — RM acknowledgement events</li>
+      <li>Timers — SLA enforcement (24h/48h)</li>
+      <li>Compensations — retry &amp; rollback logic</li>
+    </ul>
+  </div>
+  <div class="card" style="border-color:rgba(251,146,60,0.3);">
+    <h3>🖥️ Human Task Layer <span class="badge badge-orange" style="margin-left:4px;">New</span></h3>
+    <ul>
+      <li>Orkes Human Tasks — lightweight built-in</li>
+      <li>Appian (optional) — enterprise form designer</li>
+      <li>Task inbox — RM sees pending cases</li>
+      <li>Context pre-filled — from RAG response payload</li>
+      <li>Mobile-responsive — RM on branch floor</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── Code Sample ── -->
+<div class="section-h">Integration Code — Python Worker</div>
+<div class="card">
+  <h3>📦 How the workflow is triggered from <code style="font-size:0.82rem; color:#a78bfa;">app.py</code></h3>
+  <p style="margin-bottom:0;">When a banker finds a dispute in AskMyBank.ai, a single call starts the full workflow:</p>
+  <div class="code-block">
+<pre><span class="code-comment"># In app.py — after RAG returns a dispute result</span>
+<span class="code-kw">from</span> workflow.orkes_client <span class="code-kw">import</span> start_dispute_workflow
+
+<span class="code-comment"># Banker clicks "Raise Workflow" button in Streamlit UI</span>
+<span class="code-kw">if</span> st.button(<span class="code-str">"🚀 Start Resolution Workflow"</span>):
+    result = start_dispute_workflow(
+        doc_id      = <span class="code-str">"DSP00042"</span>,
+        customer_id = <span class="code-str">"CUST00012"</span>,
+        rm_email    = <span class="code-str">"sarah.chen@securebank.com"</span>,
+        case_summary = rag_response[<span class="code-str">"answer"</span>],
+        dispute_amount = <span class="code-num">4250.00</span>,
+        priority    = <span class="code-str">"High"</span>,
+    )
+    st.success(<span class="code-str">f"✅ Workflow started — ID: {result['workflowId']}"</span>)
+    st.markdown(<span class="code-str">f"[Track in Orkes →]({result['trackingUrl']})"</span>)
+
+<span class="code-comment">
+# workflow/orkes_client.py</span>
+<span class="code-kw">import</span> requests, os
+
+ORKES_URL   = os.getenv(<span class="code-str">"ORKES_SERVER_URL"</span>)
+ORKES_TOKEN = os.getenv(<span class="code-str">"ORKES_ACCESS_TOKEN"</span>)
+
+<span class="code-kw">def</span> start_dispute_workflow(**payload) -> dict:
+    resp = requests.post(
+        <span class="code-str">f"{ORKES_URL}/api/workflow/dispute_resolution"</span>,
+        json    = payload,
+        headers = {<span class="code-str">"X-Authorization"</span>: ORKES_TOKEN},
+        timeout = <span class="code-num">10</span>,
+    )
+    resp.raise_for_status()
+    wf_id = resp.json()[<span class="code-str">"workflowId"</span>]
+    <span class="code-kw">return</span> {
+        <span class="code-str">"workflowId"</span>  : wf_id,
+        <span class="code-str">"trackingUrl"</span> : <span class="code-str">f"{ORKES_URL}/execution/{wf_id}"</span>
+    }</pre>
+  </div>
+</div>
+
+<!-- ── Implementation Roadmap ── -->
+<div class="section-h">Implementation Roadmap</div>
+<div class="card">
+  <div class="roadmap-item">
+    <div class="roadmap-phase">Week 1</div>
+    <div class="roadmap-content">
+      <h4>🏗️ Foundation — Orkes Setup + Skeleton Workflow</h4>
+      <p>Sign up for Orkes Cloud dev tier · Define workflow JSON · Deploy Python workers locally · Test trigger from app.py with mock tasks</p>
+    </div>
+  </div>
+  <div class="roadmap-item">
+    <div class="roadmap-phase">Week 2</div>
+    <div class="roadmap-content">
+      <h4>🤖 AI Classification Task + RM Assignment</h4>
+      <p>Wire Nova Lite as a Bedrock HTTP task · Auto-assign RM from ClickHouse metadata · Add "Start Workflow" button to Streamlit UI</p>
+    </div>
+  </div>
+  <div class="roadmap-item">
+    <div class="roadmap-phase">Week 3</div>
+    <div class="roadmap-content">
+      <h4>⏳ Durable Wait + Escalation Logic</h4>
+      <p>Implement WAIT_FOR_SIGNAL with 24h timer · Build RM acknowledgement endpoint · Wire escalation branch · Test end-to-end timeout path</p>
+    </div>
+  </div>
+  <div class="roadmap-item">
+    <div class="roadmap-phase">Week 4</div>
+    <div class="roadmap-content">
+      <h4>💾 ClickHouse Writeback + Human Task UI</h4>
+      <p>Update case_status/resolution in ClickHouse on completion · Build Orkes Human Task form for RM resolution · Demo end-to-end with real dispute data</p>
+    </div>
+  </div>
+  <div class="roadmap-item" style="border-bottom:none;">
+    <div class="roadmap-phase">Optional</div>
+    <div class="roadmap-content">
+      <h4>🏢 Appian Integration (Enterprise Upgrade)</h4>
+      <p>Replace Orkes Human Tasks with Appian forms for richer UI · Target if buyer is already an Appian shop (common in ANZ banking)</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Value Prop ── -->
+<div class="section-h">Business Value</div>
+<div class="three-col">
+  <div class="card" style="border-color:rgba(34,197,94,0.3);">
+    <h3>⏱️ SLA Compliance</h3>
+    <p>Automated escalation ensures no case exceeds regulatory SLA. Timer survives server restarts — no cron jobs, no polling.</p>
+  </div>
+  <div class="card" style="border-color:rgba(59,130,246,0.3);">
+    <h3>📋 Full Audit Trail</h3>
+    <p>Every step, decision, and timestamp is persisted durably. FCA/APRA audit-ready with zero extra effort from the RM.</p>
+  </div>
+  <div class="card" style="border-color:rgba(139,92,246,0.3);">
+    <h3>🔁 Resilient by Default</h3>
+    <p>Orkes retries failed tasks automatically. Network blip mid-workflow? Resumes from the last checkpoint — no duplicate actions.</p>
+  </div>
+</div>
+
+<!-- ── Footer ── -->
+<footer>
+  <div style="margin-bottom:8px;">
+    <a href="../index.html">Home</a> &nbsp;·&nbsp;
+    <a href="architecture.html">Architecture</a> &nbsp;·&nbsp;
+    <a href="interactions.html">Interactions</a> &nbsp;·&nbsp;
+    <a href="workflow.html">Workflow</a> &nbsp;·&nbsp;
+    <a href="https://github.com/dpanwar-vigyan/securebank-ai-poc" target="_blank">GitHub</a> &nbsp;·&nbsp;
+    <a href="https://askmybank.ai" target="_blank">Live Demo</a>
+  </div>
+  SecureBank AI · Built by <a href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank">Dinesh Singh Panwar</a>
+</footer>
+
+</body>
+</html>
