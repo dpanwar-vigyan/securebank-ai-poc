@@ -287,7 +287,6 @@
 <script>
 const API_URL  = 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com/ask';
 const PASSWORD = 'SecureBank@2025';
-const DEMO_KEY = 'askmybank-demo-2025';   // matches DEMO_API_KEY env var in Lambda
 const IT_EMAIL = 'dinesh.s.panwar@gmail.com';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -322,7 +321,7 @@ function warmLambda() {
 async function apiFetch(body) {
   return fetch(API_URL, {
     method:'POST',
-    headers:{'Content-Type':'application/json','x-demo-key': DEMO_KEY},
+    headers:{'Content-Type':'application/json'},
     body: JSON.stringify(body)
   });
 }
