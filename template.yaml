@@ -23,6 +23,11 @@ Parameters:
     Type: String
     Default: ""
 
+  DemoApiKey:
+    Type: String
+    Default: ""
+    Description: Optional API key for demo access (X-Demo-Key header). Leave blank to disable.
+
   Stage:
     Type: String
     Default: prod
@@ -39,6 +44,7 @@ Globals:
         BEDROCK_REGION:     !Ref BedrockRegion
         CLICKHOUSE_HOST:    !Ref ClickHouseHost
         CLICKHOUSE_USER:    !Ref ClickHouseUser
+        DEMO_API_KEY:       !Ref DemoApiKey
         # Secrets (CLICKHOUSE_PASSWORD, LLM_MODEL) passed via SSM or env override
 
 Resources:
@@ -96,6 +102,9 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: $default    # $default stage → no stage prefix in URL → FastAPI routes match correctly
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 10    # max simultaneous requests
+        ThrottlingRateLimit: 5      # requests per second sustained
       CorsConfiguration:
         AllowOrigins:
           - "https://askmybank.ai"

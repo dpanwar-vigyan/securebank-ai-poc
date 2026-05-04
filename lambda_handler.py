@@ -9,8 +9,9 @@ Warm invocations reuse it — no cold start penalty for subsequent calls.
 import json
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from mangum import Mangum
 from pydantic import BaseModel
 
@@ -21,10 +22,29 @@ app = FastAPI(title="AskMyBank API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://askmybank.ai", "https://www.askmybank.ai", "*"],
+    allow_origins=["https://askmybank.ai", "https://www.askmybank.ai", "http://localhost:3000"],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# ── API key guard ─────────────────────────────────────────────────────────────
+# Set DEMO_API_KEY env var in Lambda to enable. Requests must send:
+#   X-Demo-Key: <value>
+# If env var is not set (local dev / first deploy) the guard is skipped.
+_API_KEY = os.getenv("DEMO_API_KEY", "")
+
+@app.middleware("http")
+async def api_key_guard(request: Request, call_next):
+    if _API_KEY:
+        # Allow OPTIONS (CORS pre-flight) and /health through without a key
+        if request.method != "OPTIONS" and request.url.path not in ("/health", "/"):
+            key = request.headers.get("x-demo-key", "")
+            if key != _API_KEY:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Unauthorised — demo access key required"},
+                )
+    return await call_next(request)
 
 # ── RAG — initialised once, reused across warm invocations ───────────────────
 print("Initialising BankingRAG...")

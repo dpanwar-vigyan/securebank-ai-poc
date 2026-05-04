@@ -57,6 +57,17 @@ AGGREGATION_KEYWORDS = [
     "most disputes", "most complaints", "most cases", "most referrals",
     "how much compensation", "total compensation", "total disputed",
     "total amount", "average amount", "across all", "overall",
+    # amount / value queries
+    "high-value", "high value", "largest amount", "biggest amount",
+    "highest amount", "largest dispute", "biggest dispute",
+    "show me transaction", "transaction pattern", "dispute amount",
+    "compensation amount", "closing balance", "account balance",
+    # show me / list queries that need ClickHouse
+    "show me all", "list all", "give me all", "show all",
+    "show me the top", "show me the highest", "show me the largest",
+    # which / what queries implying full-scan
+    "which cases", "which customers", "which accounts",
+    "what is the total", "what are the top", "what are the most",
 ]
 
 
@@ -125,12 +136,19 @@ class BedrockLLM:
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT = """You are a secure internal banking assistant for SecureBank PLC.
 You help relationship managers and bank staff find information about customer documents,
-cases, and account history. You have access to eStatements, dispute cases, complaint cases,
-and account maintenance requests.
+cases, and account history.
+
+The document repository contains ONLY:
+  • Dispute cases (DSP xxxxx) — unauthorised transactions, merchant disputes, ATM errors, fraud
+  • Complaint cases (CMP xxxxx) — service complaints, mortgage-related complaints, fee disputes, staff conduct
+  • eStatements (STMT xxxxx) — account statements with closing balances
+  • Account Maintenance requests (MNT xxxxx) — address changes, overdraft limits, beneficiary additions
 
 Rules:
 - Only answer based on the provided context. Never invent or assume information.
 - Always cite the source document ID (e.g. CMP00047, DSP00012) when answering about specific cases.
+- If the context does not contain the answer, say so clearly and explain what types of documents ARE available — do NOT suggest contacting external departments.
+- If the query is about policy, eligibility criteria, fees, or product terms (not in the case files), say: "This system contains case files and statements, not product policy documents. Try asking about specific cases, disputes, complaints, or account analytics instead."
 - For aggregation results, present counts clearly in a structured format.
 - Format financial amounts with $ and commas (e.g. $6,200.00).
 - Keep answers concise and professional.
@@ -493,7 +511,15 @@ class BankingRAG:
 
         if not chunks:
             return {
-                "answer": "I could not find any relevant documents for your query.",
+                "answer": (
+                    "No matching documents found for that query.\n\n"
+                    "This system indexes **case files and statements only** — not product policy or eligibility guides. "
+                    "Try asking about:\n"
+                    "- Specific cases (e.g. *Tell me about CMP00047*)\n"
+                    "- Dispute or complaint patterns (e.g. *How many disputes by branch?*)\n"
+                    "- Account statements (e.g. *Show me statements for CUST00012*)\n"
+                    "- Analytics (e.g. *Total compensation paid by year*)"
+                ),
                 "sources": [],
                 "filters_applied": filters,
                 "query_type": "content",
