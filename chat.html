@@ -7,265 +7,162 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
-
   body { font-family:'Inter',sans-serif; background:#f0f4f9; color:#1a2540; height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
 
   /* ── Nav ── */
-  nav {
-    background:rgba(0,51,102,0.97); backdrop-filter:blur(8px);
-    padding:0 24px; height:52px; flex-shrink:0;
-    display:flex; align-items:center; justify-content:space-between;
-    box-shadow:0 2px 20px rgba(0,0,0,0.25); z-index:10;
-  }
+  nav { background:rgba(0,51,102,0.97); backdrop-filter:blur(8px); padding:0 24px; height:52px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 20px rgba(0,0,0,0.25); z-index:10; }
   .nav-brand { display:flex; align-items:center; gap:9px; text-decoration:none; }
-  .nav-brand-icon { font-size:20px; }
   .nav-brand-text { color:#fff; font-weight:700; font-size:15px; letter-spacing:-0.3px; }
-  .nav-badge {
-    font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
-    background:linear-gradient(135deg,#00cc66,#00aa44); color:#fff;
-    padding:2px 9px; border-radius:12px; margin-left:4px;
-  }
+  .nav-badge { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; background:linear-gradient(135deg,#00cc66,#00aa44); color:#fff; padding:2px 9px; border-radius:12px; margin-left:4px; }
   .nav-right { display:flex; align-items:center; gap:8px; }
-  .nav-right a {
-    color:#aaccee; font-size:12px; font-weight:500; text-decoration:none;
-    display:flex; align-items:center; gap:5px; padding:5px 12px; border-radius:18px;
-    transition:all .2s; border:1px solid transparent;
-  }
+  .nav-right a { color:#aaccee; font-size:12px; font-weight:500; text-decoration:none; display:flex; align-items:center; gap:5px; padding:5px 12px; border-radius:18px; transition:all .2s; border:1px solid transparent; }
   .nav-right a:hover { color:#fff; background:rgba(255,255,255,0.1); }
-  .nav-streamlit {
-    background:rgba(255,75,75,0.15) !important;
-    border-color:rgba(255,75,75,0.35) !important;
-    color:#ffaaaa !important;
-  }
+  .nav-streamlit { background:rgba(255,75,75,0.15) !important; border-color:rgba(255,75,75,0.35) !important; color:#ffaaaa !important; }
   .nav-streamlit:hover { background:rgba(255,75,75,0.28) !important; color:#fff !important; }
 
-  /* ── Password Gate ── */
-  .gate {
-    flex:1; display:flex; align-items:center; justify-content:center;
-    background:linear-gradient(145deg,#001f4d 0%,#003366 50%,#004488 100%);
-  }
-  .gate-card {
-    background:#fff; border-radius:20px; padding:48px 44px;
-    max-width:400px; width:90%; text-align:center;
-    box-shadow:0 20px 60px rgba(0,0,40,0.35);
-  }
+  /* ── Gate ── */
+  .gate { flex:1; display:flex; align-items:center; justify-content:center; background:linear-gradient(145deg,#001f4d 0%,#003366 50%,#004488 100%); }
+  .gate-card { background:#fff; border-radius:20px; padding:48px 44px; max-width:400px; width:90%; text-align:center; box-shadow:0 20px 60px rgba(0,0,40,0.35); }
   .gate-icon { font-size:48px; margin-bottom:16px; }
   .gate-title { font-size:22px; font-weight:800; color:#0a1a30; margin-bottom:8px; }
   .gate-sub { font-size:13px; color:#556677; line-height:1.6; margin-bottom:28px; }
-  .gate-input {
-    width:100%; padding:12px 16px; border:1.5px solid #d0dce8; border-radius:10px;
-    font-size:15px; font-family:'Inter',sans-serif; color:#1a2540;
-    outline:none; transition:border-color .2s; margin-bottom:12px;
-  }
+  .gate-input { width:100%; padding:12px 16px; border:1.5px solid #d0dce8; border-radius:10px; font-size:15px; font-family:'Inter',sans-serif; color:#1a2540; outline:none; transition:border-color .2s; margin-bottom:12px; }
   .gate-input:focus { border-color:#0055a5; }
-  .gate-btn {
-    width:100%; padding:13px; border-radius:10px; border:none; cursor:pointer;
-    background:linear-gradient(135deg,#0077cc,#0055a5);
-    color:#fff; font-size:15px; font-weight:700; font-family:'Inter',sans-serif;
-    transition:all .2s;
-  }
+  .gate-btn { width:100%; padding:13px; border-radius:10px; border:none; cursor:pointer; background:linear-gradient(135deg,#0077cc,#0055a5); color:#fff; font-size:15px; font-weight:700; font-family:'Inter',sans-serif; transition:all .2s; }
   .gate-btn:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,80,200,0.35); }
   .gate-error { font-size:13px; color:#cc3300; margin-top:8px; display:none; }
   .gate-hint { font-size:11px; color:#8899aa; margin-top:16px; line-height:1.5; }
 
-  /* ── Main shell: sidebar + chat ── */
+  /* ── Shell ── */
   .chat-shell { flex:1; display:none; min-height:0; }
   .chat-shell.visible { display:flex; flex-direction:row; }
 
-  /* ── Left Sidebar ── */
-  .sidebar {
-    width:240px; flex-shrink:0;
-    background:#fff; border-right:1px solid #dce6f0;
-    display:flex; flex-direction:column;
-    overflow:hidden;
-  }
-  .sidebar-header {
-    padding:14px 16px 10px;
-    border-bottom:1px solid #eef2f8;
-    flex-shrink:0;
-  }
-  .sidebar-title {
-    font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
-    color:#7799bb; margin-bottom:2px;
-  }
+  /* ── Sidebar ── */
+  .sidebar { width:236px; flex-shrink:0; background:#fff; border-right:1px solid #dce6f0; display:flex; flex-direction:column; overflow:hidden; }
+  .sidebar-header { padding:12px 16px 8px; border-bottom:1px solid #eef2f8; flex-shrink:0; }
+  .sidebar-title { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#7799bb; margin-bottom:1px; }
   .sidebar-sub { font-size:11px; color:#99aabb; }
-
-  .sidebar-questions { flex:1; overflow-y:auto; padding:8px 0; }
-  .sidebar-section {
-    padding:8px 16px 4px;
-    font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase;
-    color:#aabbcc;
-  }
-  .sq {
-    display:block; width:100%; text-align:left;
-    padding:8px 16px; font-size:12px; font-weight:500; color:#334455;
-    background:none; border:none; cursor:pointer;
-    border-left:2px solid transparent;
-    transition:all .15s; line-height:1.4;
-  }
-  .sq:hover {
-    background:#f0f5ff; color:#0044aa;
-    border-left-color:#0055a5;
-  }
-  .sq-icon { margin-right:6px; font-size:11px; }
-
-  .sidebar-footer {
-    padding:12px 16px; border-top:1px solid #eef2f8; flex-shrink:0;
-  }
-  .streamlit-link {
-    display:flex; align-items:center; gap:7px;
-    padding:8px 12px; border-radius:10px;
-    background:#fff5f5; border:1px solid #ffcccc;
-    color:#cc3333; font-size:12px; font-weight:600;
-    text-decoration:none; transition:all .2s;
-  }
-  .streamlit-link:hover { background:#ffe8e8; border-color:#cc3333; }
-  .streamlit-label { font-size:10px; color:#999; margin-top:4px; text-align:center; }
-
-  /* Sidebar scrollbar */
+  .sidebar-questions { flex:1; overflow-y:auto; padding:6px 0; }
+  .sidebar-section { padding:8px 16px 3px; font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#aabbcc; }
+  .sq { display:block; width:100%; text-align:left; padding:7px 16px; font-size:12px; font-weight:500; color:#334455; background:none; border:none; cursor:pointer; border-left:2px solid transparent; transition:all .15s; line-height:1.4; }
+  .sq:hover { background:#f0f5ff; color:#0044aa; border-left-color:#0055a5; }
   .sidebar-questions::-webkit-scrollbar { width:3px; }
   .sidebar-questions::-webkit-scrollbar-thumb { background:#d0dce8; border-radius:2px; }
+  .sidebar-footer { padding:10px 16px; border-top:1px solid #eef2f8; flex-shrink:0; }
+  .streamlit-link { display:flex; align-items:center; gap:7px; padding:8px 12px; border-radius:10px; background:#fff5f5; border:1px solid #ffcccc; color:#cc3333; font-size:12px; font-weight:600; text-decoration:none; transition:all .2s; }
+  .streamlit-link:hover { background:#ffe8e8; border-color:#cc3333; }
+  .sidebar-doc-counts { margin-top:10px; font-size:11px; color:#667788; }
+  .sidebar-doc-counts table { width:100%; border-collapse:collapse; }
+  .sidebar-doc-counts td { padding:2px 4px; }
+  .sidebar-doc-counts td:last-child { text-align:right; font-weight:600; color:#0055a5; }
 
   /* ── Chat area ── */
-  .chat-area {
-    flex:1; display:flex; flex-direction:column; min-width:0;
-  }
-
-  /* ── Context bar ── */
-  .context-bar {
-    background:#f8fafc; border-bottom:1px solid #dce6f0;
-    padding:6px 20px; display:flex; align-items:center; gap:12px; flex-shrink:0;
-  }
-  .ctx-pill {
-    display:inline-flex; align-items:center; gap:5px;
-    font-size:11px; font-weight:600; color:#445566;
-    background:#fff; border:1px solid #d0dce8; border-radius:12px;
-    padding:2px 10px;
-  }
+  .chat-area { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .context-bar { background:#f8fafc; border-bottom:1px solid #dce6f0; padding:5px 20px; display:flex; align-items:center; gap:10px; flex-shrink:0; flex-wrap:wrap; }
+  .ctx-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:#445566; background:#fff; border:1px solid #d0dce8; border-radius:12px; padding:2px 10px; }
   .ctx-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
-  .ctx-dot.green { background:#00bb55; box-shadow:0 0 0 2px rgba(0,180,80,0.25); }
+  .ctx-dot.green { background:#00bb55; box-shadow:0 0 0 2px rgba(0,180,80,0.25); animation:pulse 2s infinite; }
   .ctx-dot.blue  { background:#0077cc; }
+  @keyframes pulse { 0%,100% { box-shadow:0 0 0 2px rgba(0,180,80,0.25); } 50% { box-shadow:0 0 0 4px rgba(0,180,80,0.15); } }
 
-  /* ── Messages area ── */
-  .messages {
-    flex:1; overflow-y:auto; padding:20px;
-    display:flex; flex-direction:column; gap:16px;
-    scroll-behavior:smooth;
-  }
+  /* ── Messages ── */
+  .messages { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:16px; scroll-behavior:smooth; }
+  .messages::-webkit-scrollbar { width:5px; }
+  .messages::-webkit-scrollbar-thumb { background:#c5d4e3; border-radius:4px; }
 
-  /* Welcome */
-  .welcome {
-    background:linear-gradient(135deg,#001f4d,#003a70);
-    border-radius:16px; padding:24px 28px; color:#fff;
-    border:1px solid rgba(255,255,255,0.1);
-  }
+  .welcome { background:linear-gradient(135deg,#001f4d,#003a70); border-radius:16px; padding:24px 28px; color:#fff; border:1px solid rgba(255,255,255,0.1); }
   .welcome h2 { font-size:17px; font-weight:700; margin-bottom:8px; }
   .welcome p  { font-size:13px; color:#aaccee; line-height:1.65; }
 
-  /* Bubbles */
-  .msg { display:flex; gap:10px; align-items:flex-start; max-width:820px; width:100%; }
+  .msg { display:flex; gap:10px; align-items:flex-start; max-width:860px; width:100%; }
   .msg.user { flex-direction:row-reverse; margin-left:auto; }
-  .msg-avatar {
-    width:32px; height:32px; border-radius:50%; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center;
-    font-size:15px; font-weight:700; color:#fff;
-  }
-  .msg-avatar.bot  { background:linear-gradient(135deg,#003366,#0055a5); font-size:17px; }
-  .msg-avatar.user { background:linear-gradient(135deg,#0077cc,#0055cc); font-size:13px; }
+  .msg-avatar { width:32px; height:32px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:17px; color:#fff; }
+  .msg-avatar.bot  { background:linear-gradient(135deg,#003366,#0055a5); }
+  .msg-avatar.user { background:linear-gradient(135deg,#0077cc,#0055cc); font-size:13px; font-weight:700; }
   .msg-body { flex:1; min-width:0; }
-  .msg-bubble {
-    padding:11px 15px; border-radius:14px; font-size:14px; line-height:1.65;
-    word-break:break-word;
-  }
-  .msg.user .msg-bubble {
-    background:linear-gradient(135deg,#0077cc,#0055cc); color:#fff;
-    border-radius:14px 14px 4px 14px; margin-left:40px;
-  }
-  .msg.bot .msg-bubble {
-    background:#fff; color:#1a2540;
-    border:1px solid #dce6f0; border-radius:14px 14px 14px 4px;
-    box-shadow:0 1px 6px rgba(0,30,80,0.06);
-  }
+  .msg-bubble { padding:11px 15px; border-radius:14px; font-size:14px; line-height:1.7; word-break:break-word; }
+  .msg.user .msg-bubble { background:linear-gradient(135deg,#0077cc,#0055cc); color:#fff; border-radius:14px 14px 4px 14px; margin-left:40px; }
+  .msg.bot .msg-bubble { background:#fff; color:#1a2540; border:1px solid #dce6f0; border-radius:14px 14px 14px 4px; box-shadow:0 1px 6px rgba(0,30,80,0.06); }
+  .msg-bubble ul { margin:6px 0 6px 18px; }
+  .msg-bubble li { margin-bottom:2px; }
+  .msg-bubble p { margin-bottom:6px; }
+  .msg-bubble p:last-child { margin-bottom:0; }
+  .msg-bubble h2,.msg-bubble h3 { font-size:14px; font-weight:700; margin:10px 0 4px; color:#0a1a30; }
 
-  /* Sources */
-  .sources { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
-  .source-chip {
-    display:inline-flex; align-items:center; gap:4px;
-    font-size:11px; color:#0055a5; font-weight:500;
-    background:#eef4ff; border:1px solid #c5d8f5;
-    padding:3px 9px; border-radius:10px; transition:all .15s;
-  }
-  .source-chip[onclick] { cursor:pointer; }
-  .source-chip[onclick]:hover {
-    background:#ddeeff; border-color:#0055a5;
-    transform:translateY(-1px); box-shadow:0 2px 8px rgba(0,60,160,0.15);
-  }
-  .cached-badge {
-    display:inline-flex; align-items:center; gap:4px;
-    font-size:10px; color:#007744; font-weight:600;
-    background:#e6fff0; border:1px solid #aaddbb;
-    padding:2px 8px; border-radius:8px; margin-top:6px;
-  }
-  .agg-box {
-    background:#f5f8ff; border:1px solid #c5d8f5; border-radius:10px;
-    padding:10px 14px; margin-top:6px; font-size:13px; color:#334466;
-  }
+  /* ── Markdown table in bubble ── */
+  .md-table { width:100%; border-collapse:collapse; margin:10px 0; font-size:13px; }
+  .md-table th { background:#f0f5ff; color:#003366; font-weight:700; padding:6px 10px; border:1px solid #d0dcf0; text-align:left; }
+  .md-table td { padding:5px 10px; border:1px solid #e0eaf8; color:#1a2540; }
+  .md-table tr:nth-child(even) td { background:#f8faff; }
 
-  /* Typing */
+  /* ── ClickHouse data table ── */
+  .ch-table-wrap { overflow-x:auto; margin-top:10px; border-radius:10px; border:1px solid #c5d8f5; }
+  .ch-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .ch-table th { background:#003366; color:#fff; padding:7px 12px; text-align:left; font-weight:600; white-space:nowrap; }
+  .ch-table td { padding:6px 12px; border-bottom:1px solid #e8eef8; color:#1a2540; }
+  .ch-table tr:last-child td { border-bottom:none; }
+  .ch-table tr:hover td { background:#f0f5ff; }
+  .ch-table td:first-child { font-weight:600; color:#003366; }
+
+  /* ── Expandable panels ── */
+  .expandable { margin-top:8px; }
+  .expand-btn { display:flex; align-items:center; gap:6px; background:#f0f4f9; border:1px solid #dce6f0; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:600; color:#445566; cursor:pointer; width:100%; text-align:left; transition:all .15s; }
+  .expand-btn:hover { background:#e8eef8; color:#0044aa; }
+  .expand-btn .arrow { transition:transform .2s; font-size:10px; margin-left:auto; }
+  .expand-btn.open .arrow { transform:rotate(90deg); }
+  .expand-content { display:none; border:1px solid #dce6f0; border-top:none; border-radius:0 0 8px 8px; padding:12px; background:#fff; }
+  .expand-content.open { display:block; }
+
+  /* ── Source cards ── */
+  .source-card { background:#f0f4ff; border-left:4px solid #003366; border-radius:6px; padding:10px 14px; margin-bottom:8px; font-size:13px; cursor:pointer; transition:background .15s; }
+  .source-card:hover { background:#e4ecff; }
+  .source-card-id { font-weight:700; color:#003366; font-size:13px; }
+  .source-card-meta { color:#556677; margin-top:2px; font-size:12px; }
+  .source-card-summary { color:#556677; margin-top:4px; font-size:12px; line-height:1.5; }
+
+  /* ── Filter badges ── */
+  .filter-badges { margin-top:6px; display:flex; flex-wrap:wrap; gap:5px; }
+  .filter-badge { background:#e8f0fe; border:1px solid #4a90d9; border-radius:12px; padding:2px 10px; font-size:11px; color:#003366; }
+
+  /* ── Cached badge ── */
+  .cached-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; color:#007744; font-weight:600; background:#e6fff0; border:1px solid #aaddbb; padding:2px 8px; border-radius:8px; margin-top:6px; }
+
+  /* ── Performance footer ── */
+  .perf-footer { display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding:7px 12px; background:#f5f8ff; border-radius:8px; border:1px solid #dde8f8; font-size:12px; color:#667788; gap:10px; flex-wrap:wrap; }
+  .perf-left { display:flex; gap:14px; align-items:center; }
+  .perf-path { font-weight:600; }
+  .it-link { color:#c0392b; text-decoration:none; font-weight:600; font-size:11px; background:#fff0ee; border:1px solid #f5c6c0; border-radius:6px; padding:3px 10px; white-space:nowrap; flex-shrink:0; }
+  .it-link:hover { background:#ffe0dc; }
+
+  /* ── SQL code ── */
+  .sql-code { background:#1a2540; color:#88ddff; border-radius:6px; padding:10px 14px; font-family:monospace; font-size:12px; overflow-x:auto; white-space:pre-wrap; line-height:1.5; }
+
+  /* ── Typing ── */
   .typing { display:flex; align-items:center; gap:5px; padding:4px 0; }
-  .typing-dot {
-    width:7px; height:7px; border-radius:50%; background:#0055a5;
-    animation:bounce .9s infinite ease-in-out;
-  }
+  .typing-dot { width:7px; height:7px; border-radius:50%; background:#0055a5; animation:bounce .9s infinite ease-in-out; }
   .typing-dot:nth-child(2) { animation-delay:.15s; }
   .typing-dot:nth-child(3) { animation-delay:.3s; }
-  @keyframes bounce {
-    0%,60%,100% { transform:translateY(0); opacity:.5; }
-    30% { transform:translateY(-6px); opacity:1; }
-  }
+  @keyframes bounce { 0%,60%,100% { transform:translateY(0); opacity:.5; } 30% { transform:translateY(-6px); opacity:1; } }
 
-  /* ── Input bar ── */
-  .input-bar {
-    background:#fff; border-top:1px solid #dce6f0; padding:12px 16px;
-    display:flex; gap:10px; align-items:flex-end; flex-shrink:0;
-  }
+  /* ── Input ── */
+  .input-bar { background:#fff; border-top:1px solid #dce6f0; padding:12px 16px; display:flex; gap:10px; align-items:flex-end; flex-shrink:0; }
   .input-wrap { flex:1; }
-  textarea {
-    width:100%; resize:none; border:1.5px solid #c8d8ec; border-radius:12px;
-    padding:10px 14px; font-size:14px; font-family:'Inter',sans-serif;
-    color:#1a2540; line-height:1.5; outline:none; max-height:120px;
-    transition:border-color .2s; overflow-y:auto; display:block;
-  }
+  textarea { width:100%; resize:none; border:1.5px solid #c8d8ec; border-radius:12px; padding:10px 14px; font-size:14px; font-family:'Inter',sans-serif; color:#1a2540; line-height:1.5; outline:none; max-height:120px; transition:border-color .2s; overflow-y:auto; display:block; }
   textarea:focus { border-color:#0055a5; }
   textarea::placeholder { color:#99aabb; }
   .input-hint { font-size:11px; color:#aabbcc; margin-top:4px; text-align:right; }
-  .send-btn {
-    width:42px; height:42px; border-radius:12px; border:none; cursor:pointer;
-    background:linear-gradient(135deg,#0077cc,#0055a5);
-    color:#fff; display:flex; align-items:center; justify-content:center;
-    transition:all .2s; flex-shrink:0;
-  }
+  .send-btn { width:42px; height:42px; border-radius:12px; border:none; cursor:pointer; background:linear-gradient(135deg,#0077cc,#0055a5); color:#fff; display:flex; align-items:center; justify-content:center; transition:all .2s; flex-shrink:0; }
   .send-btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,80,200,0.35); }
-  .send-btn:disabled { opacity:0.4; cursor:default; transform:none; box-shadow:none; }
+  .send-btn:disabled { opacity:0.4; cursor:default; }
 
   /* ── Footer ── */
-  .chat-footer {
-    background:#f8fafc; border-top:1px solid #e8eef5;
-    padding:5px 16px; display:flex; align-items:center; justify-content:space-between;
-    flex-shrink:0;
-  }
+  .chat-footer { background:#f8fafc; border-top:1px solid #e8eef5; padding:5px 16px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
   .chat-footer span { font-size:11px; color:#8899aa; }
   .chat-footer a { color:#0055a5; text-decoration:none; }
 
-  /* Messages scrollbar */
-  .messages::-webkit-scrollbar { width:5px; }
-  .messages::-webkit-scrollbar-track { background:transparent; }
-  .messages::-webkit-scrollbar-thumb { background:#c5d4e3; border-radius:4px; }
-
-  /* ── Mobile: hide sidebar, show toggle ── */
+  /* ── Mobile ── */
   @media (max-width:680px) {
     .sidebar { display:none; }
-    .context-bar { padding:5px 12px; gap:8px; overflow-x:auto; }
     .messages { padding:12px; gap:12px; }
     .input-bar { padding:10px 12px; }
   }
@@ -273,17 +170,14 @@
 </head>
 <body>
 
-<!-- ── Nav ── -->
 <nav>
   <a class="nav-brand" href="/">
-    <span class="nav-brand-icon">🏦</span>
+    <span style="font-size:20px">🏦</span>
     <span class="nav-brand-text">AskMyBank.ai</span>
     <span class="nav-badge">BETA</span>
   </a>
   <div class="nav-right">
-    <a href="https://dpanwar-securebank-ai-poc.streamlit.app" target="_blank" class="nav-streamlit">
-      🔴 Streamlit (legacy)
-    </a>
+    <a href="https://dpanwar-securebank-ai-poc.streamlit.app" target="_blank" class="nav-streamlit">🔴 Streamlit (legacy)</a>
     <a href="/" style="border-color:rgba(255,255,255,0.15)">← Home</a>
     <a href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
@@ -292,7 +186,7 @@
   </div>
 </nav>
 
-<!-- ── Password Gate ── -->
+<!-- Gate -->
 <div class="gate" id="gate">
   <div class="gate-card">
     <div class="gate-icon">🏦</div>
@@ -300,79 +194,79 @@
     <div class="gate-sub">AI-powered banking assistant with RAG, NL→SQL and vector search over 1,000 real bank case documents.</div>
     <input type="password" class="gate-input" id="gateInput" placeholder="Enter demo password" autocomplete="off"/>
     <button class="gate-btn" onclick="checkPassword()">Enter Demo →</button>
-    <div class="gate-error" id="gateError">Incorrect password — try again.</div>
-    <div class="gate-hint">🔒 Password-protected demo · AWS Lambda + Amazon Bedrock + ClickHouse</div>
+    <div class="gate-error" id="gateError">Incorrect password — contact Dinesh on LinkedIn for access.</div>
+    <div class="gate-hint">🔒 Private demo · AWS Lambda + Amazon Bedrock + ClickHouse · All data is synthetic</div>
   </div>
 </div>
 
-<!-- ── Chat Shell ── -->
+<!-- Chat Shell -->
 <div class="chat-shell" id="chatShell">
 
-  <!-- ── Left Sidebar ── -->
+  <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-title">Try asking…</div>
-      <div class="sidebar-sub">Click any question to send</div>
+      <div class="sidebar-sub">Click any question</div>
     </div>
-
     <div class="sidebar-questions">
 
       <div class="sidebar-section">📊 Analytics (ClickHouse)</div>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">🏢</span>How many dispute cases by branch?</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">🏆</span>Which branch has the most complaints?</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">💰</span>Show me the highest dispute amounts</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">📅</span>Total compensation paid by year</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">⚖️</span>How many cases referred to Ombudsman?</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">📈</span>Breakdown of complaint types</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">👤</span>Which relationship manager has most cases?</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">📆</span>How many cases per year?</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">💳</span>Most common dispute type</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">🏅</span>Average dispute amount by branch</button>
+      <button class="sq" onclick="sq(this)">How many complaints were raised each year?</button>
+      <button class="sq" onclick="sq(this)">How many disputes per branch?</button>
+      <button class="sq" onclick="sq(this)">Breakdown of complaints by type</button>
+      <button class="sq" onclick="sq(this)">How many cases referred to Ombudsman by year?</button>
+      <button class="sq" onclick="sq(this)">Which relationship manager handled the most disputes?</button>
+      <button class="sq" onclick="sq(this)">Which customers had disputes over $5,000?</button>
+      <button class="sq" onclick="sq(this)">Total compensation paid by year</button>
+      <button class="sq" onclick="sq(this)">Most common dispute type</button>
+      <button class="sq" onclick="sq(this)">Average dispute amount by branch</button>
+      <button class="sq" onclick="sq(this)">How many cases per year?</button>
 
       <div class="sidebar-section">🔍 Document Search (RAG)</div>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">📄</span>Tell me about complaint CMP00047</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">🚨</span>Show unauthorised transaction disputes</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">🏠</span>Find high priority mortgage complaints</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">🏙️</span>Cases from the Manchester branch</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">✅</span>Show closed-won dispute cases</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">🏧</span>ATM withdrawal error cases</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">💼</span>Staff conduct complaints</button>
-      <button class="sq" onclick="sendSample(this)"><span class="sq-icon">🔄</span>Cases with partial refund issued</button>
+      <button class="sq" onclick="sq(this)">Summarise the complaint from Mathew Little</button>
+      <button class="sq" onclick="sq(this)">What was the dispute about in case DSP00012?</button>
+      <button class="sq" onclick="sq(this)">Show all high priority complaints from Leeds branch</button>
+      <button class="sq" onclick="sq(this)">What complaints were referred to the Ombudsman?</button>
+      <button class="sq" onclick="sq(this)">What is the resolution of case CMP00047?</button>
+      <button class="sq" onclick="sq(this)">Tell me about the mortgage complaints this year</button>
+      <button class="sq" onclick="sq(this)">What account maintenance did customer CUST00020 request?</button>
+      <button class="sq" onclick="sq(this)">Summarise all product mis-selling complaints</button>
+      <button class="sq" onclick="sq(this)">What was the outcome of the unauthorised transaction disputes?</button>
 
     </div>
-
     <div class="sidebar-footer">
       <a href="https://dpanwar-securebank-ai-poc.streamlit.app" target="_blank" class="streamlit-link">
-        <span>🔴</span>
-        <span>Open Streamlit version</span>
-        <span style="margin-left:auto;opacity:.6">↗</span>
+        <span>🔴</span><span>Open Streamlit version</span><span style="margin-left:auto;opacity:.6">↗</span>
       </a>
-      <div class="streamlit-label">Legacy parallel run</div>
+      <div class="sidebar-doc-counts" style="margin-top:10px">
+        <table>
+          <tr><td>📄 eStatements</td><td>400</td></tr>
+          <tr><td>⚖️ Disputes</td><td>250</td></tr>
+          <tr><td>📋 Complaints</td><td>200</td></tr>
+          <tr><td>🔧 Maintenance</td><td>150</td></tr>
+        </table>
+      </div>
     </div>
   </aside>
 
-  <!-- ── Chat area ── -->
+  <!-- Chat area -->
   <div class="chat-area">
-
-    <!-- Context bar -->
     <div class="context-bar">
       <span class="ctx-pill"><span class="ctx-dot green"></span>Lambda Warm</span>
       <span class="ctx-pill"><span class="ctx-dot blue"></span>S3 · NumPy</span>
-      <span class="ctx-pill"><span class="ctx-dot blue"></span>Bedrock</span>
+      <span class="ctx-pill"><span class="ctx-dot blue"></span>Bedrock Nova Lite</span>
       <span class="ctx-pill"><span class="ctx-dot blue"></span>ClickHouse</span>
       <span class="ctx-pill" id="cachePill" style="display:none"><span class="ctx-dot green"></span>⚡ Cached</span>
     </div>
 
-    <!-- Messages -->
     <div class="messages" id="messages">
       <div class="welcome">
         <h2>👋 Welcome to AskMyBank.ai</h2>
-        <p>I search across <strong>1,000 real bank case documents</strong> — disputes, complaints, eStatements and account maintenance records — using semantic vector search + live ClickHouse analytics.<br><br>
-        Pick a question from the sidebar, or type your own below.</p>
+        <p>I search across <strong>1,000 real bank case documents</strong> — disputes, complaints, eStatements and account maintenance — using semantic vector search + live ClickHouse NL→SQL analytics.<br><br>
+        Pick a question from the sidebar or type your own below.</p>
       </div>
     </div>
 
-    <!-- Input bar -->
     <div class="input-bar">
       <div class="input-wrap">
         <textarea id="queryInput" rows="1" placeholder="Ask about disputes, complaints, branches, analytics…" maxlength="1000"></textarea>
@@ -383,21 +277,20 @@
       </button>
     </div>
 
-    <!-- Footer -->
     <div class="chat-footer">
-      <span>🏦 AskMyBank.ai · Built by <a href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank">Dinesh Singh Panwar</a></span>
-      <span><strong>AWS Lambda</strong> · <strong>Bedrock Nova Lite</strong> · <strong>ClickHouse</strong></span>
+      <span>🏦 AskMyBank.ai · Built by <a href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank">Dinesh Singh Panwar</a> · A Kshetra Initiative</span>
+      <span><strong>AWS Lambda</strong> · <strong>Bedrock</strong> · <strong>ClickHouse</strong></span>
     </div>
-
-  </div><!-- /chat-area -->
-
-</div><!-- /chat-shell -->
+  </div>
+</div>
 
 <script>
 const API_URL  = 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com/ask';
 const PASSWORD = 'SecureBank@2025';
+const DEMO_KEY = 'askmybank-demo-2025';   // matches DEMO_API_KEY env var in Lambda
+const IT_EMAIL = 'dinesh.s.panwar@gmail.com';
 
-// ── Auth ─────────────────────────────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────────────────────
 function checkPassword() {
   const val = document.getElementById('gateInput').value;
   if (val === PASSWORD) {
@@ -411,83 +304,246 @@ function checkPassword() {
     err.style.display = 'block';
     document.getElementById('gateInput').value = '';
     document.getElementById('gateInput').focus();
-    setTimeout(() => err.style.display = 'none', 3000);
+    setTimeout(() => err.style.display = 'none', 4000);
   }
 }
-document.getElementById('gateInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') checkPassword();
-});
-if (sessionStorage.getItem('askmybank_auth') === '1') {
-  document.getElementById('gate').style.display = 'none';
+document.getElementById('gateInput').addEventListener('keydown', e => { if (e.key==='Enter') checkPassword(); });
+if (sessionStorage.getItem('askmybank_auth')==='1') {
+  document.getElementById('gate').style.display='none';
   document.getElementById('chatShell').classList.add('visible');
   warmLambda();
 }
 
-// ── Warm Lambda ───────────────────────────────────────────────────────────────
 function warmLambda() {
-  fetch(API_URL, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({query:'', source:'warming'})
-  }).catch(()=>{});
+  apiFetch({query:'', source:'warming'}).catch(()=>{});
 }
 
-// ── Auto-resize textarea ──────────────────────────────────────────────────────
+// ── API ───────────────────────────────────────────────────────────────────────
+async function apiFetch(body) {
+  return fetch(API_URL, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-demo-key': DEMO_KEY},
+    body: JSON.stringify(body)
+  });
+}
+
+// ── Textarea ──────────────────────────────────────────────────────────────────
 const textarea = document.getElementById('queryInput');
 textarea.addEventListener('input', () => {
-  textarea.style.height = 'auto';
-  textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  textarea.style.height='auto';
+  textarea.style.height=Math.min(textarea.scrollHeight,120)+'px';
 });
 textarea.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-// ── State ─────────────────────────────────────────────────────────────────────
 let isLoading = false;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+function setLoading(on) {
+  isLoading=on;
+  document.getElementById('sendBtn').disabled=on;
+  document.getElementById('queryInput').disabled=on;
 }
 
-function formatAnswer(text) {
-  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  text = text.replace(/^[\-•]\s+(.+)$/gm, '<li>$1</li>');
-  text = text.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul style="margin:6px 0 6px 18px;list-style:disc">$1</ul>');
-  text = text.replace(/\n{2,}/g, '</p><p style="margin-top:8px">');
-  text = text.replace(/\n/g, '<br>');
-  return text;
+// ── Markdown → HTML ───────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function appendMessage(role, content, extra) {
+function mdToHtml(raw) {
+  const lines = raw.split('\n');
+  let html = '';
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Markdown table
+    if (line.trim().startsWith('|') && i+1 < lines.length && lines[i+1].trim().startsWith('|') && /[-|]/.test(lines[i+1])) {
+      const headers = line.trim().split('|').filter(c=>c.trim()).map(c=>`<th>${escHtml(c.trim())}</th>`).join('');
+      let rows = '';
+      i += 2; // skip header + separator
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        const cells = lines[i].trim().split('|').filter(c=>c.trim()).map(c=>`<td>${escHtml(c.trim())}</td>`).join('');
+        rows += `<tr>${cells}</tr>`;
+        i++;
+      }
+      html += `<table class="md-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+      continue;
+    }
+
+    // Heading
+    if (/^#{1,3}\s/.test(line)) {
+      const lvl = line.match(/^#+/)[0].length;
+      const txt = escHtml(line.replace(/^#+\s/,''));
+      html += `<h${Math.min(lvl,3)}>${txt}</h${Math.min(lvl,3)}>`;
+      i++; continue;
+    }
+
+    // Bullet
+    if (/^[\-\*•]\s/.test(line.trim())) {
+      html += '<ul>';
+      while (i < lines.length && /^[\-\*•]\s/.test(lines[i].trim())) {
+        html += `<li>${inlineMd(escHtml(lines[i].trim().replace(/^[\-\*•]\s/,'')))}</li>`;
+        i++;
+      }
+      html += '</ul>';
+      continue;
+    }
+
+    // Numbered list
+    if (/^\d+\.\s/.test(line.trim())) {
+      html += '<ol style="margin:6px 0 6px 18px">';
+      while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
+        html += `<li>${inlineMd(escHtml(lines[i].trim().replace(/^\d+\.\s/,'')))}</li>`;
+        i++;
+      }
+      html += '</ol>';
+      continue;
+    }
+
+    // Blank line
+    if (!line.trim()) { html += ''; i++; continue; }
+
+    // Paragraph
+    html += `<p>${inlineMd(escHtml(line))}</p>`;
+    i++;
+  }
+  return html;
+}
+
+function inlineMd(s) {
+  return s
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g,'<em>$1</em>')
+    .replace(/`(.*?)`/g,'<code style="background:#f0f4f9;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
+}
+
+// ── IT support mailto ─────────────────────────────────────────────────────────
+function itMailto(question, answer, qtype, elapsedMs) {
+  const path = qtype==='clickhouse_nl_sql' ? 'ClickHouse NL→SQL' : 'RAG Vector Search';
+  const ts   = new Date().toISOString().replace('T',' ').slice(0,19);
+  const body = [
+    'AskMyBank.ai — Unsatisfactory Response Report',
+    '='.repeat(50),
+    '',
+    `Timestamp : ${ts}`,
+    `Query path: ${path} (${elapsedMs}ms)`,
+    '',
+    'QUESTION:',
+    question,
+    '',
+    'RESPONSE (excerpt):',
+    answer.slice(0,500) + (answer.length>500?'...':''),
+    '',
+    'ISSUE DESCRIPTION:',
+    '[Please describe what was wrong or missing]',
+    '',
+    '---',
+    'Raised via AskMyBank.ai chat interface',
+  ].join('\n');
+  const params = new URLSearchParams({
+    subject: `AskMyBank.ai Support — Query Issue [${ts}]`,
+    body
+  });
+  return `mailto:${IT_EMAIL}?${params.toString()}`;
+}
+
+// ── Build data table from ClickHouse table_data ───────────────────────────────
+function buildDataTable(tableData, rowCount) {
+  if (!tableData || !tableData.length) return '';
+  const cols = Object.keys(tableData[0]);
+  const headers = cols.map(c=>`<th>${escHtml(c)}</th>`).join('');
+  const rows = tableData.map(row =>
+    `<tr>${cols.map(c=>`<td>${escHtml(row[c]??'')}</td>`).join('')}</tr>`
+  ).join('');
+  return `<div class="ch-table-wrap"><table class="ch-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ── Expandable toggle ─────────────────────────────────────────────────────────
+let _expandId = 0;
+function expandable(label, contentHtml) {
+  const id = 'exp' + (++_expandId);
+  return `
+    <div class="expandable">
+      <button class="expand-btn" id="btn_${id}" onclick="toggleExpand('${id}')">
+        ${escHtml(label)} <span class="arrow">▶</span>
+      </button>
+      <div class="expand-content" id="cnt_${id}">${contentHtml}</div>
+    </div>`;
+}
+function toggleExpand(id) {
+  document.getElementById('btn_'+id).classList.toggle('open');
+  document.getElementById('cnt_'+id).classList.toggle('open');
+}
+
+// ── Append message ─────────────────────────────────────────────────────────────
+function appendMessage(role, content, extra, elapsedMs, question) {
   const msgs = document.getElementById('messages');
   const div  = document.createElement('div');
   div.className = 'msg ' + role;
 
-  const avatar = role === 'bot'
+  const avatar = role==='bot'
     ? '<div class="msg-avatar bot">🏦</div>'
     : '<div class="msg-avatar user">D</div>';
 
-  let body = `<div class="msg-bubble">${formatAnswer(escapeHtml(content))}</div>`;
+  let body = `<div class="msg-bubble">${mdToHtml(content)}</div>`;
 
-  if (extra && role === 'bot') {
-    if (extra.cached) {
-      body += `<div class="cached-badge">⚡ Cached response</div>`;
+  if (extra && role==='bot') {
+    const qtype = extra.query_type || 'content';
+    const isClickHouse = qtype === 'clickhouse_nl_sql';
+
+    // Cached badge
+    if (extra.cached) body += `<div class="cached-badge">⚡ Cached response</div>`;
+
+    // ClickHouse results table
+    if (isClickHouse && extra.table_data && extra.table_data.length) {
+      const tableHtml = buildDataTable(extra.table_data, extra.row_count);
+      body += expandable(`📊 ClickHouse results — ${extra.row_count || extra.table_data.length} rows`, tableHtml);
     }
-    if (extra.sources && extra.sources.length) {
-      const chips = extra.sources.slice(0, 8).map(s => {
-        const id    = s.doc_id || '';
-        const type  = s.doc_type || '';
-        const label = id ? (type ? `${escapeHtml(id)} · ${escapeHtml(type)}` : escapeHtml(id)) : 'Source';
-        const q     = id ? `Tell me about ${type || 'document'} ${id}` : '';
-        const attrs = q ? `onclick="drillInto('${escapeHtml(q)}')" title="Click to read this document"` : '';
-        return `<span class="source-chip" ${attrs}>📄 ${label}${q ? ' <span style="opacity:.5;font-size:10px">↗</span>' : ''}</span>`;
+
+    // Generated SQL
+    if (isClickHouse && extra.sql) {
+      const cached = extra.sql_cached ? ' · SQL cached ⚡' : ' · SQL generated';
+      body += expandable(`🔎 Generated SQL${cached}`, `<div class="sql-code">${escHtml(extra.sql)}</div>`);
+    }
+
+    // Source cards (RAG)
+    if (!isClickHouse && extra.sources && extra.sources.length) {
+      const cards = extra.sources.slice(0,8).map(s => {
+        const id  = s.doc_id || '';
+        const q   = id ? `Tell me about ${s.doc_type||'document'} ${id}` : '';
+        const clickAttr = q ? `onclick="drillInto('${escHtml(q)}')" title="Click to read this document"` : '';
+        return `<div class="source-card" ${clickAttr}>
+          <div class="source-card-id">${escHtml(id)} — ${escHtml(s.doc_type||'')}</div>
+          <div class="source-card-meta">👤 ${escHtml(s.customer_name||'')} &nbsp;|&nbsp; 🏢 ${escHtml(s.branch_name||'')}</div>
+          <div class="source-card-summary">${escHtml((s.case_summary||'').slice(0,120))}${(s.case_summary||'').length>120?'…':''}</div>
+        </div>`;
       }).join('');
-      body += `<div class="sources">${chips}</div>`;
+      body += expandable(`📄 ${extra.sources.length} source document(s)`, cards);
     }
-    if (extra.aggregation_answer) {
-      body += `<div class="agg-box">📊 <strong>Analytics:</strong> ${escapeHtml(extra.aggregation_answer)}</div>`;
+
+    // Filter badges
+    if (extra.filters_applied && Object.keys(extra.filters_applied).length) {
+      const badges = Object.entries(extra.filters_applied)
+        .map(([k,v])=>`<span class="filter-badge">🔎 ${escHtml(k)}: ${escHtml(v)}</span>`)
+        .join('');
+      body += `<div class="filter-badges">${badges}</div>`;
+    }
+
+    // Performance footer + IT support
+    if (elapsedMs !== null) {
+      const pathIcon  = isClickHouse ? '⚡' : '🔍';
+      const pathLabel = isClickHouse
+        ? 'ClickHouse NL→SQL' + (extra.sql_cached ? ' · SQL cached ⚡' : '')
+        : 'RAG Vector Search';
+      const elapsed   = elapsedMs >= 1000 ? `${(elapsedMs/1000).toFixed(1)}s` : `${elapsedMs}ms`;
+      const mailto    = itMailto(question||'', content, qtype, elapsedMs);
+      body += `<div class="perf-footer">
+        <div class="perf-left">
+          <span class="perf-path">${pathIcon} ${escHtml(pathLabel)}</span>
+          <span>⏱ ${elapsed}</span>
+        </div>
+        <a class="it-link" href="${mailto}">🎫 Not satisfied? Raise IT request</a>
+      </div>`;
     }
   }
 
@@ -499,22 +555,12 @@ function appendMessage(role, content, extra) {
 function appendTyping() {
   const msgs = document.getElementById('messages');
   const div  = document.createElement('div');
-  div.className = 'msg bot'; div.id = 'typingMsg';
-  div.innerHTML = `<div class="msg-avatar bot">🏦</div>
-    <div class="msg-body"><div class="msg-bubble">
-      <div class="typing">
-        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
-      </div></div></div>`;
+  div.className='msg bot'; div.id='typingMsg';
+  div.innerHTML=`<div class="msg-avatar bot">🏦</div><div class="msg-body"><div class="msg-bubble"><div class="typing"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div></div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
 function removeTyping() { const t=document.getElementById('typingMsg'); if(t) t.remove(); }
-
-function setLoading(on) {
-  isLoading = on;
-  document.getElementById('sendBtn').disabled = on;
-  document.getElementById('queryInput').disabled = on;
-}
 
 // ── Send ──────────────────────────────────────────────────────────────────────
 async function sendMessage() {
@@ -523,47 +569,44 @@ async function sendMessage() {
   const query = input.value.trim();
   if (!query) return;
 
-  input.value = ''; input.style.height = 'auto';
-  appendMessage('user', query);
+  input.value=''; input.style.height='auto';
+  appendMessage('user', query, null, null, null);
   setLoading(true);
   appendTyping();
-  document.getElementById('cachePill').style.display = 'none';
+  document.getElementById('cachePill').style.display='none';
 
+  const t0 = Date.now();
   try {
-    const res = await fetch(API_URL, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({query, source:'user'})
-    });
+    const res = await apiFetch({query, source:'user'});
     removeTyping();
+    const elapsedMs = Date.now() - t0;
+
     if (!res.ok) {
       const err = await res.json().catch(()=>({detail:'Unknown error'}));
-      appendMessage('bot', '⚠️ Error: ' + (err.detail || res.statusText));
+      appendMessage('bot', '⚠️ Error: ' + (err.detail||res.statusText), null, null, null);
     } else {
       const data = await res.json();
-      appendMessage('bot', data.answer || data.message || JSON.stringify(data), data);
+      const answer = data.answer || data.message || JSON.stringify(data);
+      appendMessage('bot', answer, data, elapsedMs, query);
       if (data.cached) {
-        document.getElementById('cachePill').style.display = 'inline-flex';
-        setTimeout(()=> document.getElementById('cachePill').style.display='none', 4000);
+        document.getElementById('cachePill').style.display='inline-flex';
+        setTimeout(()=>document.getElementById('cachePill').style.display='none', 4000);
       }
     }
   } catch(err) {
     removeTyping();
-    appendMessage('bot', '⚠️ Could not reach the API. Check your connection and try again.');
+    appendMessage('bot','⚠️ Could not reach the API. Check your connection and try again.',null,null,null);
   } finally {
     setLoading(false);
     document.getElementById('queryInput').focus();
   }
 }
 
-// ── Sidebar / sample click ────────────────────────────────────────────────────
-function sendSample(el) {
-  // strip the icon span text
-  const text = el.innerText.replace(/^.\s+/, '').trim();
-  document.getElementById('queryInput').value = text;
+// ── Sidebar / drill ───────────────────────────────────────────────────────────
+function sq(el) {
+  document.getElementById('queryInput').value = el.textContent.trim();
   sendMessage();
 }
-
-// ── Drill into source doc ─────────────────────────────────────────────────────
 function drillInto(query) {
   if (isLoading) return;
   document.getElementById('queryInput').value = query;

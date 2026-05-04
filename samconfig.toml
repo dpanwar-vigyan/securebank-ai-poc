@@ -1,0 +1,14 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "askmybank-api"
+resolve_s3 = true
+s3_prefix = "askmybank-api"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "VectorsBucket=\"askmybank-vectors\" BedrockRegion=\"us-east-1\" ClickHouseHost=\"u52z4ehjt5.ap-southeast-2.aws.clickhouse.cloud\" ClickHouseUser=\"default\" Stage=\"prod\" DemoApiKey=\"askmybank-demo-2025\""
+image_repositories = []
+
+[default.global.parameters]
+region = "us-east-1"
