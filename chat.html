@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AskMyBank.ai — AI Banking Assistant</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body { font-family:'Inter',sans-serif; background:#f0f4f9; color:#1a2540; height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
+
+  /* ── Nav ── */
+  nav {
+    background:rgba(0,51,102,0.97); backdrop-filter:blur(8px);
+    padding:0 24px; height:52px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:space-between;
+    box-shadow:0 2px 20px rgba(0,0,0,0.25);
+  }
+  .nav-brand { display:flex; align-items:center; gap:9px; text-decoration:none; }
+  .nav-brand-icon { font-size:20px; }
+  .nav-brand-text { color:#fff; font-weight:700; font-size:15px; letter-spacing:-0.3px; }
+  .nav-badge {
+    font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
+    background:linear-gradient(135deg,#00cc66,#00aa44); color:#fff;
+    padding:2px 9px; border-radius:12px; margin-left:4px;
+  }
+  .nav-right { display:flex; align-items:center; gap:12px; }
+  .nav-right a {
+    color:#aaccee; font-size:12px; font-weight:500; text-decoration:none;
+    display:flex; align-items:center; gap:5px; padding:5px 12px; border-radius:18px;
+    transition:all .2s; border:1px solid transparent;
+  }
+  .nav-right a:hover { color:#fff; background:rgba(255,255,255,0.1); }
+  .nav-back { border-color:rgba(255,255,255,0.15) !important; }
+
+  /* ── Password Gate ── */
+  .gate {
+    flex:1; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(145deg,#001f4d 0%,#003366 50%,#004488 100%);
+  }
+  .gate-card {
+    background:#fff; border-radius:20px; padding:48px 44px;
+    max-width:400px; width:90%; text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,40,0.35);
+  }
+  .gate-icon { font-size:48px; margin-bottom:16px; }
+  .gate-title { font-size:22px; font-weight:800; color:#0a1a30; margin-bottom:8px; }
+  .gate-sub { font-size:13px; color:#556677; line-height:1.6; margin-bottom:28px; }
+  .gate-input {
+    width:100%; padding:12px 16px; border:1.5px solid #d0dce8; border-radius:10px;
+    font-size:15px; font-family:'Inter',sans-serif; color:#1a2540;
+    outline:none; transition:border-color .2s; margin-bottom:12px;
+  }
+  .gate-input:focus { border-color:#0055a5; }
+  .gate-btn {
+    width:100%; padding:13px; border-radius:10px; border:none; cursor:pointer;
+    background:linear-gradient(135deg,#0077cc,#0055a5);
+    color:#fff; font-size:15px; font-weight:700; font-family:'Inter',sans-serif;
+    transition:all .2s;
+  }
+  .gate-btn:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,80,200,0.35); }
+  .gate-error {
+    font-size:13px; color:#cc3300; margin-top:8px; display:none;
+  }
+  .gate-hint { font-size:11px; color:#8899aa; margin-top:16px; line-height:1.5; }
+
+  /* ── Chat layout ── */
+  .chat-shell { flex:1; display:flex; flex-direction:column; min-height:0; display:none; }
+
+  /* ── Context bar ── */
+  .context-bar {
+    background:#fff; border-bottom:1px solid #dce6f0;
+    padding:8px 20px; display:flex; align-items:center; gap:16px; flex-shrink:0;
+  }
+  .ctx-pill {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:11px; font-weight:600; color:#445566;
+    background:#f0f4f9; border:1px solid #d0dce8; border-radius:12px;
+    padding:3px 10px;
+  }
+  .ctx-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .ctx-dot.green { background:#00bb55; box-shadow:0 0 0 2px rgba(0,180,80,0.25); }
+  .ctx-dot.blue  { background:#0077cc; }
+
+  /* ── Messages area ── */
+  .messages {
+    flex:1; overflow-y:auto; padding:20px;
+    display:flex; flex-direction:column; gap:16px;
+    scroll-behavior:smooth;
+  }
+
+  /* Welcome message */
+  .welcome {
+    background:linear-gradient(135deg,#001f4d,#003a70);
+    border-radius:16px; padding:28px 32px; color:#fff;
+    border:1px solid rgba(255,255,255,0.1);
+  }
+  .welcome h2 { font-size:18px; font-weight:700; margin-bottom:8px; }
+  .welcome p  { font-size:13px; color:#aaccee; line-height:1.65; margin-bottom:16px; }
+  .sample-qs  { display:flex; flex-wrap:wrap; gap:8px; }
+  .sample-q {
+    background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.18);
+    color:#cce4ff; font-size:12px; font-weight:500;
+    padding:6px 13px; border-radius:20px; cursor:pointer; transition:all .2s;
+  }
+  .sample-q:hover { background:rgba(255,255,255,0.2); color:#fff; }
+
+  /* Message bubbles */
+  .msg { display:flex; gap:10px; align-items:flex-start; max-width:860px; width:100%; }
+  .msg.user { flex-direction:row-reverse; margin-left:auto; }
+  .msg-avatar {
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; font-weight:700; color:#fff;
+  }
+  .msg-avatar.bot  { background:linear-gradient(135deg,#003366,#0055a5); font-size:18px; }
+  .msg-avatar.user { background:linear-gradient(135deg,#0077cc,#0055cc); font-size:13px; }
+  .msg-body { flex:1; min-width:0; }
+  .msg-bubble {
+    padding:12px 16px; border-radius:14px; font-size:14px; line-height:1.65;
+    word-break:break-word;
+  }
+  .msg.user .msg-bubble {
+    background:linear-gradient(135deg,#0077cc,#0055cc); color:#fff;
+    border-radius:14px 14px 4px 14px; margin-left:40px;
+  }
+  .msg.bot .msg-bubble {
+    background:#fff; color:#1a2540;
+    border:1px solid #dce6f0; border-radius:14px 14px 14px 4px;
+    box-shadow:0 1px 6px rgba(0,30,80,0.06);
+  }
+  .msg.bot .msg-bubble.cached {
+    border-color:#cceecc; background:#f8fff8;
+  }
+
+  /* Sources */
+  .sources {
+    margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;
+  }
+  .source-chip {
+    display:inline-flex; align-items:center; gap:4px;
+    font-size:11px; color:#0055a5; font-weight:500;
+    background:#eef4ff; border:1px solid #c5d8f5;
+    padding:3px 9px; border-radius:10px;
+  }
+  .cached-badge {
+    display:inline-flex; align-items:center; gap:4px;
+    font-size:10px; color:#007744; font-weight:600;
+    background:#e6fff0; border:1px solid #aaddbb;
+    padding:2px 8px; border-radius:8px; margin-top:6px;
+  }
+
+  /* Aggregation answer */
+  .agg-box {
+    background:#f5f8ff; border:1px solid #c5d8f5; border-radius:10px;
+    padding:10px 14px; margin-top:6px; font-size:13px; color:#334466;
+  }
+
+  /* Typing indicator */
+  .typing { display:flex; align-items:center; gap:5px; padding:12px 16px; }
+  .typing-dot {
+    width:7px; height:7px; border-radius:50%; background:#0055a5;
+    animation:bounce .9s infinite ease-in-out;
+  }
+  .typing-dot:nth-child(2) { animation-delay:.15s; }
+  .typing-dot:nth-child(3) { animation-delay:.3s; }
+  @keyframes bounce {
+    0%,60%,100% { transform:translateY(0); opacity:.5; }
+    30% { transform:translateY(-5px); opacity:1; }
+  }
+
+  /* ── Input bar ── */
+  .input-bar {
+    background:#fff; border-top:1px solid #dce6f0; padding:14px 20px;
+    display:flex; gap:10px; align-items:flex-end; flex-shrink:0;
+  }
+  .input-wrap { flex:1; position:relative; }
+  textarea {
+    width:100%; resize:none; border:1.5px solid #c8d8ec; border-radius:12px;
+    padding:10px 14px; font-size:14px; font-family:'Inter',sans-serif;
+    color:#1a2540; line-height:1.5; outline:none; max-height:120px;
+    transition:border-color .2s;
+    overflow-y:auto;
+  }
+  textarea:focus { border-color:#0055a5; }
+  textarea::placeholder { color:#99aabb; }
+  .send-btn {
+    width:44px; height:44px; border-radius:12px; border:none; cursor:pointer;
+    background:linear-gradient(135deg,#0077cc,#0055a5);
+    color:#fff; font-size:18px; display:flex; align-items:center; justify-content:center;
+    transition:all .2s; flex-shrink:0;
+  }
+  .send-btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,80,200,0.35); }
+  .send-btn:disabled { opacity:0.4; cursor:default; transform:none; box-shadow:none; }
+  .input-hint { font-size:11px; color:#99aabb; margin-top:5px; text-align:right; }
+
+  /* ── Footer ── */
+  .chat-footer {
+    background:#f8fafc; border-top:1px solid #e8eef5;
+    padding:6px 20px; display:flex; align-items:center; justify-content:space-between;
+    flex-shrink:0;
+  }
+  .chat-footer span { font-size:11px; color:#8899aa; }
+  .chat-footer a { color:#0055a5; text-decoration:none; }
+  .chat-footer a:hover { text-decoration:underline; }
+
+  /* Scrollbar */
+  .messages::-webkit-scrollbar { width:5px; }
+  .messages::-webkit-scrollbar-track { background:transparent; }
+  .messages::-webkit-scrollbar-thumb { background:#c5d4e3; border-radius:4px; }
+
+  /* ── Responsive ── */
+  @media (max-width:600px) {
+    .context-bar { display:none; }
+    .messages { padding:12px; gap:12px; }
+    .input-bar { padding:10px 12px; }
+    .welcome { padding:20px; }
+    .welcome h2 { font-size:16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <a class="nav-brand" href="/">
+    <span class="nav-brand-icon">🏦</span>
+    <span class="nav-brand-text">AskMyBank.ai</span>
+    <span class="nav-badge">BETA</span>
+  </a>
+  <div class="nav-right">
+    <a href="/" class="nav-back">← Back to Home</a>
+    <a href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+      LinkedIn
+    </a>
+    <a href="https://github.com/dpanwar-vigyan/securebank-ai-poc" target="_blank">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- ── Password Gate ── -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="gate-icon">🏦</div>
+    <div class="gate-title">AskMyBank Demo</div>
+    <div class="gate-sub">AI-powered banking assistant with RAG, NL→SQL and vector search over real bank documents.</div>
+    <input type="password" class="gate-input" id="gateInput" placeholder="Enter demo password" autocomplete="off"/>
+    <button class="gate-btn" onclick="checkPassword()">Enter Demo →</button>
+    <div class="gate-error" id="gateError">Incorrect password — try again.</div>
+    <div class="gate-hint">🔒 Password-protected demo · Powered by AWS Lambda + Amazon Bedrock</div>
+  </div>
+</div>
+
+<!-- ── Chat Shell (hidden until authenticated) ── -->
+<div class="chat-shell" id="chatShell">
+
+  <!-- Context bar -->
+  <div class="context-bar">
+    <span class="ctx-pill"><span class="ctx-dot green"></span>Lambda Warm</span>
+    <span class="ctx-pill"><span class="ctx-dot blue"></span>S3 · NumPy Vector Search</span>
+    <span class="ctx-pill"><span class="ctx-dot blue"></span>Amazon Bedrock</span>
+    <span class="ctx-pill" id="cachePill" style="display:none"><span class="ctx-dot green"></span>Answer Cached</span>
+  </div>
+
+  <!-- Messages -->
+  <div class="messages" id="messages">
+    <div class="welcome">
+      <h2>👋 Welcome to AskMyBank.ai</h2>
+      <p>Ask me anything about banking regulations, fees, dispute resolution, product terms, or transaction patterns. I search across thousands of real bank documents using semantic vector search + live ClickHouse analytics.</p>
+      <div class="sample-qs">
+        <span class="sample-q" onclick="sendSample(this)">What are the international wire transfer fees?</span>
+        <span class="sample-q" onclick="sendSample(this)">How do I dispute a transaction?</span>
+        <span class="sample-q" onclick="sendSample(this)">What documents are needed to open a business account?</span>
+        <span class="sample-q" onclick="sendSample(this)">Explain the overdraft protection policy</span>
+        <span class="sample-q" onclick="sendSample(this)">What are the mortgage eligibility requirements?</span>
+        <span class="sample-q" onclick="sendSample(this)">Show me high-value transaction patterns</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input bar -->
+  <div class="input-bar">
+    <div class="input-wrap">
+      <textarea id="queryInput" rows="1" placeholder="Ask about fees, regulations, disputes, transactions…" maxlength="1000"></textarea>
+      <div class="input-hint">Press Enter to send · Shift+Enter for new line</div>
+    </div>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+
+  <!-- Footer -->
+  <div class="chat-footer">
+    <span>🏦 AskMyBank.ai &nbsp;·&nbsp; Built by <a href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank">Dinesh Singh Panwar</a></span>
+    <span>Powered by <strong>AWS Lambda</strong> · <strong>Amazon Bedrock</strong> · <strong>ClickHouse</strong></span>
+  </div>
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const API_URL  = 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com/ask';
+const PASSWORD = 'securebank2025';
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+function checkPassword() {
+  const val = document.getElementById('gateInput').value;
+  if (val === PASSWORD) {
+    sessionStorage.setItem('askmybank_auth', '1');
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('chatShell').style.display = 'flex';
+    document.getElementById('queryInput').focus();
+    warmLambda();
+  } else {
+    const err = document.getElementById('gateError');
+    err.style.display = 'block';
+    document.getElementById('gateInput').value = '';
+    document.getElementById('gateInput').focus();
+    setTimeout(() => err.style.display = 'none', 3000);
+  }
+}
+
+// Allow Enter key on password field
+document.getElementById('gateInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkPassword();
+});
+
+// Auto-restore session
+if (sessionStorage.getItem('askmybank_auth') === '1') {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('chatShell').style.display = 'flex';
+  warmLambda();
+}
+
+// ── Warm Lambda ──────────────────────────────────────────────────────────────
+function warmLambda() {
+  fetch(API_URL, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({query: '', source: 'warming'})
+  }).catch(() => {});
+}
+
+// ── Auto-resize textarea ─────────────────────────────────────────────────────
+const textarea = document.getElementById('queryInput');
+textarea.addEventListener('input', () => {
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+});
+textarea.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// ── Message state ────────────────────────────────────────────────────────────
+let isLoading = false;
+
+// ── Render helpers ───────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function formatAnswer(text) {
+  // Bold **text**
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  // Bullet points starting with - or •
+  text = text.replace(/^[\-•]\s+(.+)$/gm, '<li>$1</li>');
+  text = text.replace(/(<li>.*<\/li>)/s, '<ul style="margin:6px 0 6px 16px;list-style:disc;">$1</ul>');
+  // Newlines → <br>
+  text = text.replace(/\n{2,}/g, '</p><p style="margin-top:8px">');
+  return text;
+}
+
+function appendMessage(role, content, extra) {
+  const msgs = document.getElementById('messages');
+  const div  = document.createElement('div');
+  div.className = 'msg ' + role;
+
+  const avatarHtml = role === 'bot'
+    ? '<div class="msg-avatar bot">🏦</div>'
+    : '<div class="msg-avatar user">D</div>';
+
+  let bodyHtml = `<div class="msg-bubble">` + formatAnswer(escapeHtml(content)) + `</div>`;
+
+  if (extra && role === 'bot') {
+    // Cached badge
+    if (extra.cached) {
+      bodyHtml += `<div class="cached-badge">⚡ Cached response</div>`;
+    }
+    // Sources
+    if (extra.sources && extra.sources.length) {
+      const chips = extra.sources.slice(0, 5).map(s =>
+        `<span class="source-chip">📄 ${escapeHtml(s.source || s.document_id || 'Source')}</span>`
+      ).join('');
+      bodyHtml += `<div class="sources">${chips}</div>`;
+    }
+    // Aggregation answer
+    if (extra.aggregation_answer) {
+      bodyHtml += `<div class="agg-box">📊 <strong>Analytics:</strong> ${escapeHtml(extra.aggregation_answer)}</div>`;
+    }
+  }
+
+  div.innerHTML = avatarHtml + `<div class="msg-body">${bodyHtml}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function appendTyping() {
+  const msgs = document.getElementById('messages');
+  const div  = document.createElement('div');
+  div.className = 'msg bot';
+  div.id = 'typingIndicator';
+  div.innerHTML = `
+    <div class="msg-avatar bot">🏦</div>
+    <div class="msg-body">
+      <div class="msg-bubble">
+        <div class="typing">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typingIndicator');
+  if (t) t.remove();
+}
+
+function setLoading(on) {
+  isLoading = on;
+  document.getElementById('sendBtn').disabled = on;
+  document.getElementById('queryInput').disabled = on;
+}
+
+// ── Send message ─────────────────────────────────────────────────────────────
+async function sendMessage() {
+  if (isLoading) return;
+  const input = document.getElementById('queryInput');
+  const query = input.value.trim();
+  if (!query) return;
+
+  // Reset input
+  input.value = '';
+  input.style.height = 'auto';
+
+  // Show user message
+  appendMessage('user', query);
+
+  // Show typing
+  setLoading(true);
+  appendTyping();
+
+  // Hide cached pill
+  document.getElementById('cachePill').style.display = 'none';
+
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({query, source: 'user'})
+    });
+
+    removeTyping();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({detail: 'Unknown error'}));
+      appendMessage('bot', '⚠️ Error: ' + (err.detail || res.statusText));
+    } else {
+      const data = await res.json();
+      const answer = data.answer || data.message || JSON.stringify(data);
+      appendMessage('bot', answer, data);
+
+      // Show cached pill in context bar
+      if (data.cached) {
+        document.getElementById('cachePill').style.display = 'inline-flex';
+        setTimeout(() => document.getElementById('cachePill').style.display = 'none', 4000);
+      }
+    }
+  } catch (err) {
+    removeTyping();
+    appendMessage('bot', '⚠️ Could not reach the API. Please check your connection or try again shortly.');
+    console.error('API error:', err);
+  } finally {
+    setLoading(false);
+    document.getElementById('queryInput').focus();
+  }
+}
+
+// ── Sample questions ──────────────────────────────────────────────────────────
+function sendSample(el) {
+  document.getElementById('queryInput').value = el.textContent;
+  sendMessage();
+}
+</script>
+</body>
+</html>
