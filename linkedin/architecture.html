@@ -434,11 +434,12 @@
 
   <div class="arrow-down">↓</div>
 
-  <!-- Chat UI -->
-  <div class="layer">
-    <div class="layer-title">
+  <!-- Phase 1: Streamlit (current) -->
+  <div class="layer" style="border-color:#c8b8e8;background:#fdf8ff;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <div class="dot" style="background:#7744cc"></div>
-      Banker-Facing Chat Interface — Streamlit Community Cloud (Hosted · Password Protected)
+      <div style="font-weight:700;font-size:0.92rem;color:#3d2277">Phase 1 · Chat Interface — Streamlit Community Cloud</div>
+      <div class="phase-badge" style="background:#edfaf2;color:#116633;border:1px solid #a8ddc0">✅ Live Now</div>
     </div>
     <div class="row" style="gap:14px">
       <div class="card card-purple" style="flex:2">
@@ -466,12 +467,103 @@
         </div>
       </div>
       <div class="card card-teal" style="flex:1">
-        <div class="card-title">💰 Running Cost</div>
+        <div class="card-title">⚠️ Limitations</div>
         <div class="card-desc">
-          <div class="pill pill-teal" style="display:block;margin-bottom:5px">~$0.001 per question</div>
-          <div class="pill pill-teal" style="display:block;margin-bottom:5px">~$1/month @ 100 q/day</div>
-          <div class="pill pill-green" style="display:block;margin-bottom:5px">S3 storage: $0 free tier</div>
-          <div class="pill pill-green" style="display:block">Streamlit hosting: $0</div>
+          <div class="pill pill-grey" style="display:block;margin-bottom:5px">~15s cold start after idle</div>
+          <div class="pill pill-grey" style="display:block;margin-bottom:5px">Occasional 500 errors on wake</div>
+          <div class="pill pill-green" style="display:block;margin-bottom:5px">~$0.001 per question</div>
+          <div class="pill pill-green" style="display:block">Hosting: $0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down" style="color:#aaa">↕ parallel run during transition</div>
+
+  <!-- Phase 2: Lambda (new) -->
+  <div class="layer" style="border-color:#a8d8b8;background:#f4fff8;border-width:2px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div class="dot" style="background:#116633"></div>
+      <div style="font-weight:700;font-size:0.92rem;color:#0a4422">Phase 2 · Serverless API — AWS Lambda + API Gateway</div>
+      <div class="phase-badge" style="background:#fff8e0;color:#886600;border:1px solid #f0d080">🔨 In Progress</div>
+    </div>
+
+    <!-- Flow diagram -->
+    <div style="display:flex;align-items:center;gap:0;flex-wrap:nowrap;overflow-x:auto;padding:4px 0 16px;margin-bottom:16px">
+      <div style="background:#fff;border:1px solid #c8e8d8;border-radius:9px;padding:10px 14px;text-align:center;min-width:110px">
+        <div style="font-size:1.2rem">🌐</div>
+        <div style="font-size:0.72rem;font-weight:700;color:#0a4422;margin-top:4px">askmybank.ai</div>
+        <div style="font-size:0.65rem;color:#668877">GitHub Pages UI</div>
+      </div>
+      <div style="padding:0 8px;color:#aabba8;font-size:1.1rem">→</div>
+      <div style="background:#fff;border:1px solid #c8e8d8;border-radius:9px;padding:10px 14px;text-align:center;min-width:120px">
+        <div style="font-size:1.2rem">🔀</div>
+        <div style="font-size:0.72rem;font-weight:700;color:#0a4422;margin-top:4px">API Gateway</div>
+        <div style="font-size:0.65rem;color:#668877">HTTP API · HTTPS</div>
+      </div>
+      <div style="padding:0 8px;color:#aabba8;font-size:1.1rem">→</div>
+      <div style="background:#e8fff2;border:2px solid #88cc99;border-radius:9px;padding:10px 14px;text-align:center;min-width:130px">
+        <div style="font-size:1.2rem">λ</div>
+        <div style="font-size:0.72rem;font-weight:700;color:#0a4422;margin-top:4px">Lambda Function</div>
+        <div style="font-size:0.65rem;color:#668877">FastAPI + Mangum · 512MB</div>
+      </div>
+      <div style="padding:0 8px;color:#aabba8;font-size:1.1rem">→</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="background:#fff;border:1px solid #c8e8d8;border-radius:9px;padding:7px 12px;text-align:center;min-width:110px">
+          <div style="font-size:0.7rem;font-weight:700;color:#0a4422">☁️ S3 + NumPy</div>
+          <div style="font-size:0.62rem;color:#668877">vectors.npy · ~4MB</div>
+        </div>
+        <div style="background:#fff;border:1px solid #c8e8d8;border-radius:9px;padding:7px 12px;text-align:center;min-width:110px">
+          <div style="font-size:0.7rem;font-weight:700;color:#0a4422">🤖 Bedrock</div>
+          <div style="font-size:0.62rem;color:#668877">Nova Lite · Titan</div>
+        </div>
+        <div style="background:#fff;border:1px solid #c8e8d8;border-radius:9px;padding:7px 12px;text-align:center;min-width:110px">
+          <div style="font-size:0.7rem;font-weight:700;color:#0a4422">🗄️ ClickHouse</div>
+          <div style="font-size:0.62rem;color:#668877">NL→SQL aggregations</div>
+        </div>
+      </div>
+      <div style="padding:0 8px;color:#aabba8;font-size:1.1rem">↙</div>
+      <div style="background:#fffbe8;border:1px solid #e8d880;border-radius:9px;padding:10px 14px;text-align:center;min-width:120px">
+        <div style="font-size:1.2rem">⏰</div>
+        <div style="font-size:0.72rem;font-weight:700;color:#886600;margin-top:4px">EventBridge</div>
+        <div style="font-size:0.65rem;color:#998844">Ping every 5 min<br>→ always warm</div>
+      </div>
+    </div>
+
+    <div class="row" style="gap:12px">
+      <div class="card" style="flex:1;border-color:#b8e8c8;background:#f8fff8">
+        <div class="card-title">λ Lambda — Always Warm</div>
+        <div class="card-desc">
+          RAG object initialised once per container. Warm invocations reuse it — no cold start.
+          EventBridge pings every 5 minutes so the container never sleeps.
+        </div>
+        <div style="margin-top:8px">
+          <div class="pill pill-green" style="display:block;margin-bottom:4px">~100ms warm response</div>
+          <div class="pill pill-green" style="display:block;margin-bottom:4px">~3s cold start (rare)</div>
+          <div class="pill pill-green" style="display:block">No 500 errors</div>
+        </div>
+      </div>
+      <div class="card" style="flex:1;border-color:#b8e8c8;background:#f8fff8">
+        <div class="card-title">☁️ S3 + NumPy Vectors</div>
+        <div class="card-desc">
+          All 4,000 vector embeddings stored as <code>vectors.npy</code> in S3 (~4MB).
+          Downloaded once on cold start, cached in Lambda memory for all warm calls.
+          Cosine similarity search across 4K vectors takes &lt;5ms.
+        </div>
+        <div style="margin-top:8px">
+          <div class="pill pill-green" style="display:block;margin-bottom:4px">No external accounts</div>
+          <div class="pill pill-green" style="display:block;margin-bottom:4px">Pure AWS-native</div>
+          <div class="pill pill-green" style="display:block">~$0.0001/month S3 cost</div>
+        </div>
+      </div>
+      <div class="card" style="flex:1;border-color:#b8e8c8;background:#f8fff8">
+        <div class="card-title">💰 Phase 2 Running Cost</div>
+        <div class="card-desc">
+          <div class="pill pill-green" style="display:block;margin-bottom:5px">Lambda: $0 (1M req free)</div>
+          <div class="pill pill-green" style="display:block;margin-bottom:5px">API Gateway: ~$0.001/mo</div>
+          <div class="pill pill-green" style="display:block;margin-bottom:5px">S3 vectors: ~$0.0001/mo</div>
+          <div class="pill pill-green" style="display:block;margin-bottom:5px">EventBridge: $0 (free tier)</div>
+          <div class="pill pill-teal" style="display:block">Bedrock: ~$0.001/query</div>
         </div>
       </div>
     </div>
@@ -530,7 +622,11 @@
       <div class="pill pill-orange">🧠 IBM watsonx (Optional)</div>
       <div class="pill pill-grey">🔐 IAM Role-Based Access</div>
       <div class="pill pill-grey">📋 Audit Logging</div>
-      <div class="pill pill-white">⚡ FastAPI (Planned)</div>
+      <div class="pill pill-green">⚡ FastAPI + Mangum (Phase 2)</div>
+      <div class="pill pill-green">λ AWS Lambda (Phase 2)</div>
+      <div class="pill pill-green">🔀 API Gateway HTTP API (Phase 2)</div>
+      <div class="pill pill-green">⏰ EventBridge Warming (Phase 2)</div>
+      <div class="pill pill-green">🔢 NumPy Vector Search (Phase 2)</div>
     </div>
   </div>
 
@@ -538,10 +634,10 @@
 
 <div class="footer">
   <strong>Banking AI Document Assistant</strong> &nbsp;·&nbsp;
-  Built on AWS Free Tier · Hosted on Streamlit Community Cloud &nbsp;·&nbsp;
-  Dual engine: ClickHouse NL→SQL (aggregation) + ChromaDB RAG (content) &nbsp;·&nbsp;
-  Real-time dual-write pipeline · USD currency · Password protected &nbsp;·&nbsp;
-  Swap S3 → IBM FileNet &nbsp;·&nbsp; Nova Lite → Claude Haiku &nbsp;·&nbsp; ChromaDB → pgvector
+  Phase 1: Streamlit · ChromaDB · ClickHouse · Bedrock Nova Lite &nbsp;·&nbsp;
+  Phase 2: AWS Lambda · API Gateway · S3+NumPy vectors · EventBridge warming &nbsp;·&nbsp;
+  Dual engine: ClickHouse NL→SQL (aggregation) + vector RAG (content) &nbsp;·&nbsp;
+  Always-warm serverless · ~$0.001/query · Pure AWS-native · No external vector DB
 </div>
 
 </body>

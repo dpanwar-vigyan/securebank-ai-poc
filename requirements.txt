@@ -12,3 +12,7 @@ reportlab>=4.0.0
 python-dotenv>=1.0.0
 clickhouse-connect>=0.7.0
 pinecone>=3.0.0            # optional — only used when PINECONE_API_KEY is set
+numpy>=1.26.0              # S3+NumPy vector search (Phase 2 Lambda)
+fastapi>=0.111.0           # Lambda API server
+mangum>=0.17.0             # FastAPI → Lambda adapter
+pydantic>=2.0.0            # FastAPI request models

@@ -1,14 +1,15 @@
 """
-RAG Chain — ChromaDB/Pinecone + ClickHouse + Bedrock Nova Lite
+RAG Chain — ChromaDB/S3/Pinecone + ClickHouse + Bedrock Nova Lite
 
 Query routing:
   1. aggregation  → ClickHouse NL→SQL  (counts, trends, breakdowns across ALL docs)
   2. content_qa   → vector RAG (what did customer say, summarise case)
   3. lookup       → filtered RAG (show complaints from Leeds)
 
-Vector backend (auto-selected):
-  • PINECONE_API_KEY set  → Pinecone serverless (Lambda-compatible)
-  • otherwise             → ChromaDB local (current default, unchanged)
+Vector backend (auto-selected by env vars — priority order):
+  1. S3_VECTORS_BUCKET set  → S3 + NumPy  (Lambda Phase 2 — no external accounts)
+  2. PINECONE_API_KEY set   → Pinecone    (alternative serverless option)
+  3. neither                → ChromaDB    (local default — Streamlit Phase 1, unchanged)
 """
 
 import json
@@ -24,6 +25,7 @@ from chromadb.utils.embedding_functions import EmbeddingFunction
 import rag.config  # noqa: F401 — loads .env + st.secrets into os.environ
 from rag.clickhouse_client import ClickHouseNLClient, ClickHouseUnavailableError
 from rag.pinecone_retriever import PineconeRetriever, PineconeUnavailableError
+from rag.s3_retriever import S3NumpyRetriever, S3RetrieverUnavailableError
 
 # ---------------------------------------------------------------------------
 # Config
@@ -307,24 +309,35 @@ class BankingRAG:
         self.embed = BedrockEmbeddings()
         self.llm   = BedrockLLM()
 
-        # ── Vector backend: Pinecone if key present, else ChromaDB ────────────
-        self.pinecone = None
-        if os.getenv("PINECONE_API_KEY"):
+        # ── Vector backend — priority: S3 → Pinecone → ChromaDB ──────────────
+        self.s3_retriever  = None
+        self.pinecone      = None
+
+        if os.getenv("S3_VECTORS_BUCKET"):
+            try:
+                self.s3_retriever = S3NumpyRetriever(embed_fn=self.embed)
+                print(f"Vector backend: S3+NumPy ✅  ({self.s3_retriever.vector_count} vectors)")
+            except Exception as exc:
+                print(f"S3 retriever init failed ({exc}) — trying Pinecone/ChromaDB")
+
+        if not self.s3_retriever and os.getenv("PINECONE_API_KEY"):
             try:
                 self.pinecone = PineconeRetriever(embed_fn=self.embed)
                 print("Vector backend: Pinecone ✅")
             except Exception as exc:
                 print(f"Pinecone init failed ({exc}) — falling back to ChromaDB")
 
-        # Always init ChromaDB: used as fallback for vector search AND
-        # for the aggregation metadata scan when ClickHouse is unavailable.
+        # Always init ChromaDB: fallback for vector search AND
+        # aggregation metadata scan when ClickHouse is unavailable.
         self.chroma = chromadb.PersistentClient(path=CHROMA_PATH)
         self.col    = self.chroma.get_or_create_collection(
             name=COLLECTION,
             embedding_function=self.embed,
             metadata={"hnsw:space": "cosine"},
         )
-        backend = "Pinecone" if self.pinecone else "ChromaDB"
+        if   self.s3_retriever: backend = "S3+NumPy"
+        elif self.pinecone:     backend = "Pinecone"
+        else:                   backend = "ChromaDB"
         print(f"Vector backend active: {backend} | ChromaDB chunks: {self.col.count()}")
 
         # ── ClickHouse for aggregation queries ────────────────────────────────
@@ -343,7 +356,16 @@ class BankingRAG:
         return {"$and": [{k: {"$eq": v}} for k, v in filters.items()]}
 
     def retrieve(self, query: str, filters: dict) -> list[dict]:
-        # ── Try Pinecone first (if configured) ────────────────────────────────
+        # ── S3+NumPy (Phase 2 Lambda backend) ─────────────────────────────────
+        if self.s3_retriever:
+            try:
+                chunks = self.s3_retriever.retrieve(query, filters)
+                if chunks:
+                    return chunks
+            except Exception as exc:
+                print(f"S3 retriever failed ({exc}) — falling back to ChromaDB")
+
+        # ── Pinecone (optional alternative) ───────────────────────────────────
         if self.pinecone:
             try:
                 chunks = self.pinecone.retrieve(query, filters)

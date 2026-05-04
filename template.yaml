@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  AskMyBank.ai — Serverless RAG API
+  Lambda + API Gateway HTTP API + EventBridge warming
+  Vector search via S3 + NumPy (no ChromaDB dependency in Lambda)
+
+Parameters:
+  VectorsBucket:
+    Type: String
+    Description: S3 bucket containing vectors.npy and metadata.json
+    Default: askmybank-vectors
+
+  BedrockRegion:
+    Type: String
+    Default: us-east-1
+
+  ClickHouseHost:
+    Type: String
+    Default: ""
+
+  ClickHouseUser:
+    Type: String
+    Default: ""
+
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, prod]
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 60          # RAG + LLM calls can take 10-20s
+    MemorySize: 512      # enough for numpy + 4MB vectors in memory
+    Environment:
+      Variables:
+        S3_VECTORS_BUCKET:  !Ref VectorsBucket
+        BEDROCK_REGION:     !Ref BedrockRegion
+        CLICKHOUSE_HOST:    !Ref ClickHouseHost
+        CLICKHOUSE_USER:    !Ref ClickHouseUser
+        # Secrets (CLICKHOUSE_PASSWORD, LLM_MODEL) passed via SSM or env override
+
+Resources:
+
+  # ── Lambda Function ─────────────────────────────────────────────────────────
+  AskMyBankFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "askmybank-api-${Stage}"
+      CodeUri: .
+      Handler: lambda_handler.handler
+      Description: AskMyBank RAG API — S3 vectors + Bedrock + ClickHouse
+      Policies:
+        # Read vectors from S3
+        - S3ReadPolicy:
+            BucketName: !Ref VectorsBucket
+        # Call Bedrock models
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: "*"
+      Events:
+        # API Gateway HTTP API (cheaper than REST API)
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AskMyBankApi
+            Path: /
+            Method: GET
+        ApiAsk:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AskMyBankApi
+            Path: /ask
+            Method: POST
+        ApiHealth:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AskMyBankApi
+            Path: /health
+            Method: GET
+        ApiOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AskMyBankApi
+            Path: /{proxy+}
+            Method: ANY
+
+  # ── API Gateway HTTP API ────────────────────────────────────────────────────
+  AskMyBankApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Stage
+      CorsConfiguration:
+        AllowOrigins:
+          - "https://askmybank.ai"
+          - "https://www.askmybank.ai"
+          - "http://localhost:3000"   # local dev
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+
+  # ── EventBridge Warming Rule — pings Lambda every 5 minutes ────────────────
+  WarmingRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "askmybank-warming-${Stage}"
+      Description: Keep AskMyBank Lambda warm — ping every 5 minutes
+      ScheduleExpression: "rate(5 minutes)"
+      State: ENABLED
+      Targets:
+        - Id: WarmAskMyBank
+          Arn: !GetAtt AskMyBankFunction.Arn
+          Input: '{"source": "warming", "query": ""}'
+
+  WarmingPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt AskMyBankFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WarmingRule.Arn
+
+  # ── S3 Bucket for vectors ───────────────────────────────────────────────────
+  VectorsBucketResource:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref VectorsBucket
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${AskMyBankApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+
+  FunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt AskMyBankFunction.Arn
+
+  VectorsBucketName:
+    Description: S3 bucket containing vectors
+    Value: !Ref VectorsBucket
