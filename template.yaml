@@ -95,7 +95,7 @@ Resources:
   AskMyBankApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      StageName: !Ref Stage
+      StageName: $default    # $default stage → no stage prefix in URL → FastAPI routes match correctly
       CorsConfiguration:
         AllowOrigins:
           - "https://askmybank.ai"
@@ -130,21 +130,12 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt WarmingRule.Arn
 
-  # ── S3 Bucket for vectors ───────────────────────────────────────────────────
-  VectorsBucketResource:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Ref VectorsBucket
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
+  # Note: S3 bucket 'askmybank-vectors' was created manually — not managed by SAM
 
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL
-    Value: !Sub "https://${AskMyBankApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+    Value: !Sub "https://${AskMyBankApi}.execute-api.${AWS::Region}.amazonaws.com"
 
   FunctionArn:
     Description: Lambda Function ARN

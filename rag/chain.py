@@ -61,6 +61,28 @@ AGGREGATION_KEYWORDS = [
 
 
 # ---------------------------------------------------------------------------
+# Module-level caches — persist for the lifetime of the Lambda container.
+# On Streamlit they persist for the session lifetime.
+# Keys normalised to lowercase+stripped so minor phrasing differences still hit.
+# ---------------------------------------------------------------------------
+_ANSWER_CACHE: dict[str, dict] = {}     # full RAG response  (saves ~3-4s per repeat)
+_EMBED_CACHE:  dict[str, list] = {}     # Titan embeddings   (saves ~500ms per repeat)
+
+ANSWER_CACHE_MAX = 200   # evict oldest when cache grows beyond this
+EMBED_CACHE_MAX  = 500
+
+def _cache_key(text: str) -> str:
+    return re.sub(r"\s+", " ", text.lower().strip())
+
+def _evict_if_full(cache: dict, max_size: int) -> None:
+    """Remove oldest 20% of entries when cache is full."""
+    if len(cache) >= max_size:
+        evict_n = max(1, max_size // 5)
+        for k in list(cache.keys())[:evict_n]:
+            del cache[k]
+
+
+# ---------------------------------------------------------------------------
 # Bedrock clients
 # ---------------------------------------------------------------------------
 class BedrockEmbeddings(EmbeddingFunction):
@@ -70,9 +92,16 @@ class BedrockEmbeddings(EmbeddingFunction):
     def __call__(self, texts: list[str]) -> list[list[float]]:
         embeddings = []
         for text in texts:
+            key = _cache_key(text)
+            if key in _EMBED_CACHE:
+                embeddings.append(_EMBED_CACHE[key])
+                continue
             body = json.dumps({"inputText": text[:8000], "dimensions": 256, "normalize": True})
             resp = self.client.invoke_model(modelId=EMBED_MODEL, body=body, contentType="application/json")
-            embeddings.append(json.loads(resp["body"].read())["embedding"])
+            emb = json.loads(resp["body"].read())["embedding"]
+            _evict_if_full(_EMBED_CACHE, EMBED_CACHE_MAX)
+            _EMBED_CACHE[key] = emb
+            embeddings.append(emb)
             time.sleep(0.05)
         return embeddings
 
@@ -355,12 +384,21 @@ class BankingRAG:
         else:                   backend = "NONE — check config"
         print(f"Vector backend active: {backend} | {chroma_info}")
 
-        # ── ClickHouse for aggregation queries ────────────────────────────────
-        try:
-            self.ch = ClickHouseNLClient()
-        except Exception as exc:
-            print(f"ClickHouse init failed ({exc}) — will use ChromaDB fallback for aggregations")
-            self.ch = None
+        # ── ClickHouse — lazy init (don't connect at startup, too slow cross-region)
+        # First aggregation query will trigger _get_ch() which connects on demand.
+        self.ch = None
+        self._ch_init_attempted = False
+
+    def _get_ch(self):
+        """Lazy ClickHouse init — connects on first aggregation query, not at startup."""
+        if not self._ch_init_attempted:
+            self._ch_init_attempted = True
+            try:
+                self.ch = ClickHouseNLClient()
+            except Exception as exc:
+                print(f"ClickHouse init failed ({exc})")
+                self.ch = None
+        return self.ch
 
     def _build_where(self, filters: dict):
         if not filters:
@@ -417,10 +455,11 @@ class BankingRAG:
 
     # ── Aggregation path → ClickHouse NL→SQL (with ChromaDB fallback) ───────
     def ask_aggregation(self, query: str, filters: dict) -> dict:
-        # Try ClickHouse first
-        if self.ch and self.ch.available:
+        # Lazy-connect to ClickHouse on first aggregation query
+        ch = self._get_ch()
+        if ch and ch.available:
             try:
-                return self.ch.ask(query)
+                return ch.ask(query)
             except ClickHouseUnavailableError:
                 pass   # fall through to ChromaDB
 
@@ -505,9 +544,23 @@ Please answer based only on the context above. Cite document IDs in your respons
 
     # ── Main entry point ────────────────────────────────────────────────────
     def ask(self, query: str) -> dict:
+        key = _cache_key(query)
+
+        # ── Answer cache hit — return immediately, no Bedrock calls ──────────
+        if key in _ANSWER_CACHE:
+            cached = dict(_ANSWER_CACHE[key])
+            cached["cached"] = True
+            print(f"Answer cache hit: {key[:60]}")
+            return cached
+
         filters = extract_filters(query)
 
         if is_aggregation_query(query):
-            return self.ask_aggregation(query, filters)
+            result = self.ask_aggregation(query, filters)
         else:
-            return self.ask_content(query, filters)
+            result = self.ask_content(query, filters)
+
+        # ── Store in answer cache ─────────────────────────────────────────────
+        _evict_if_full(_ANSWER_CACHE, ANSWER_CACHE_MAX)
+        _ANSWER_CACHE[key] = result
+        return result

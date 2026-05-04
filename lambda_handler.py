@@ -41,10 +41,13 @@ class AskRequest(BaseModel):
 # ── Routes ───────────────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
-    """Health check — also used by EventBridge warming rule."""
+    """Health check — includes cache stats."""
+    from rag.chain import _ANSWER_CACHE, _EMBED_CACHE
     return {
-        "status": "ok",
+        "status":         "ok",
         "vector_backend": "s3_numpy" if os.getenv("S3_VECTORS_BUCKET") else "chromadb",
+        "answer_cache":   len(_ANSWER_CACHE),
+        "embed_cache":    len(_EMBED_CACHE),
     }
 
 
@@ -68,4 +71,15 @@ def root():
 
 
 # ── Lambda handler ────────────────────────────────────────────────────────────
-handler = Mangum(app, lifespan="off")
+# Mangum handles HTTP API Gateway events.
+# EventBridge warming pings arrive as raw JSON (not HTTP) — intercept them first.
+_mangum = Mangum(app, lifespan="off")
+
+def handler(event, context):
+    # EventBridge sends {"source": "warming", "query": ""} directly to Lambda
+    # — not through API Gateway, so Mangum can't parse it. Handle here.
+    if isinstance(event, dict) and event.get("source") == "warming":
+        print("EventBridge warming ping — Lambda is warm")
+        return {"statusCode": 200, "body": '{"status":"warm"}'}
+    # All other events are HTTP requests via API Gateway → Mangum → FastAPI
+    return _mangum(event, context)
