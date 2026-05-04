@@ -1,0 +1,13 @@
+chroma_db/
+linkedin/
+assets/
+workflow/
+.env
+*.log
+*.key
+*.pptx
+metadata.csv
+metadata.json
+node_modules/
+__pycache__/
+.git/

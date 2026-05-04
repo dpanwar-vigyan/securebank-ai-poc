@@ -6,6 +6,7 @@
 #   ./run.sh ingest --limit 10      # ingest first 10 docs only
 #   ./run.sh ingest --resync        # force re-ingest all docs
 #   ./run.sh generate               # regenerate PDFs and upload to S3
+#   ./run.sh build-vectors          # export ChromaDB vectors → S3 (Phase 2 Lambda prep)
 
 PYTHON="/usr/bin/python3"
 SITE="/Users/dineshsinghpanwar/Library/Python/3.9/lib/python/site-packages"
@@ -28,6 +29,10 @@ case "$1" in
     echo "Generating and uploading 1,000 sample documents to S3 ..."
     "$PYTHON" generate_and_upload.py
     ;;
+  build-vectors)
+    echo "Exporting ChromaDB vectors → S3 (Phase 2 Lambda prep) ..."
+    "$PYTHON" build_vectors_s3.py
+    ;;
   *)
     echo "Usage: ./run.sh [app|ingest|generate] [options]"
     echo ""
@@ -35,6 +40,7 @@ case "$1" in
     echo "  ingest                Dual-write all S3 docs → ChromaDB + ClickHouse"
     echo "  ingest --limit N      Ingest first N docs only"
     echo "  ingest --resync       Force re-ingest even if already indexed"
-    echo "  generate              Regenerate all sample PDFs and upload to S3"
+    echo "  generate              Regenerate all sample PDFs and upload to S3
+  build-vectors         Export ChromaDB vectors → S3 for Lambda deployment"
     ;;
 esac

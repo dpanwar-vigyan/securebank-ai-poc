@@ -54,10 +54,16 @@ def main():
             offset=offset,
             include=["embeddings", "metadatas", "documents"],
         )
-        all_ids  += batch["ids"]
-        all_embs += batch["embeddings"]
-        all_metas += batch["metadatas"]
-        all_docs  += batch["documents"]
+        all_ids.extend(batch["ids"])
+        all_metas.extend(batch["metadatas"])
+        all_docs.extend(batch["documents"])
+        # ChromaDB may return embeddings as numpy array — convert to plain list
+        embs = batch["embeddings"]
+        if embs is not None:
+            if hasattr(embs, "tolist"):
+                all_embs.extend(embs.tolist())
+            else:
+                all_embs.extend(embs)
         print(f"  fetched {len(all_ids)}/{total}...")
 
     print(f"Fetch complete in {time.time()-t0:.1f}s")

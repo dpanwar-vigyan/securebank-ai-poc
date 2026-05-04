@@ -20,9 +20,17 @@ from collections import defaultdict
 from pathlib import Path
 
 import boto3
-import chromadb
-from chromadb.utils.embedding_functions import EmbeddingFunction
 import rag.config  # noqa: F401 — loads .env + st.secrets into os.environ
+
+# ChromaDB is optional — not available in Lambda (uses S3+NumPy instead)
+try:
+    import chromadb
+    from chromadb.utils.embedding_functions import EmbeddingFunction
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
+    EmbeddingFunction = object   # placeholder so class def below still works
+    print("ChromaDB not available — S3+NumPy backend required")
 from rag.clickhouse_client import ClickHouseNLClient, ClickHouseUnavailableError
 from rag.pinecone_retriever import PineconeRetriever, PineconeUnavailableError
 from rag.s3_retriever import S3NumpyRetriever, S3RetrieverUnavailableError
@@ -327,18 +335,25 @@ class BankingRAG:
             except Exception as exc:
                 print(f"Pinecone init failed ({exc}) — falling back to ChromaDB")
 
-        # Always init ChromaDB: fallback for vector search AND
-        # aggregation metadata scan when ClickHouse is unavailable.
-        self.chroma = chromadb.PersistentClient(path=CHROMA_PATH)
-        self.col    = self.chroma.get_or_create_collection(
-            name=COLLECTION,
-            embedding_function=self.embed,
-            metadata={"hnsw:space": "cosine"},
-        )
+        # ChromaDB: only init if available (Streamlit) — not present in Lambda
+        if CHROMADB_AVAILABLE:
+            self.chroma = chromadb.PersistentClient(path=CHROMA_PATH)
+            self.col    = self.chroma.get_or_create_collection(
+                name=COLLECTION,
+                embedding_function=self.embed,
+                metadata={"hnsw:space": "cosine"},
+            )
+            chroma_info = f"ChromaDB chunks: {self.col.count()}"
+        else:
+            self.chroma = None
+            self.col    = None
+            chroma_info = "ChromaDB: not available (Lambda mode)"
+
         if   self.s3_retriever: backend = "S3+NumPy"
         elif self.pinecone:     backend = "Pinecone"
-        else:                   backend = "ChromaDB"
-        print(f"Vector backend active: {backend} | ChromaDB chunks: {self.col.count()}")
+        elif self.col:          backend = "ChromaDB"
+        else:                   backend = "NONE — check config"
+        print(f"Vector backend active: {backend} | {chroma_info}")
 
         # ── ClickHouse for aggregation queries ────────────────────────────────
         try:
@@ -374,7 +389,9 @@ class BankingRAG:
             except Exception as exc:
                 print(f"Pinecone retrieve failed ({exc}) — falling back to ChromaDB")
 
-        # ── ChromaDB fallback (always available) ──────────────────────────────
+        # ── ChromaDB fallback (Streamlit only — not available in Lambda) ────────
+        if not self.col:
+            return []   # Lambda with no S3/Pinecone configured — return empty
         where = self._build_where(filters)
         try:
             results = self.col.query(
@@ -407,7 +424,13 @@ class BankingRAG:
             except ClickHouseUnavailableError:
                 pass   # fall through to ChromaDB
 
-        # ── ChromaDB fallback ────────────────────────────────────────────────
+        # ── ChromaDB fallback (Streamlit only) ──────────────────────────────────
+        if not self.col:
+            return {
+                "answer": "⚠️ Aggregation queries require ClickHouse (currently unavailable). Please try again shortly.",
+                "sources": [], "filters_applied": filters, "query_type": "content",
+            }
+
         agg    = run_aggregation(self.col, query, filters)
         prompt = format_aggregation_for_llm(agg, query)
         answer = self.llm.invoke(system=AGGREGATION_PROMPT, user=prompt)

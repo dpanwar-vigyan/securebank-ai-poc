@@ -46,6 +46,8 @@ Resources:
   # ── Lambda Function ─────────────────────────────────────────────────────────
   AskMyBankFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile   # uses Makefile target build-AskMyBankFunction
     Properties:
       FunctionName: !Sub "askmybank-api-${Stage}"
       CodeUri: .
