@@ -393,14 +393,17 @@ function appendMessage(role, content, extra) {
     if (extra.cached) {
       bodyHtml += `<div class="cached-badge">⚡ Cached response</div>`;
     }
-    // Sources
+    // Sources — show doc ID + type only, never internal paths or PII
     if (extra.sources && extra.sources.length) {
-      const chips = extra.sources.slice(0, 5).map(s =>
-        `<span class="source-chip">📄 ${escapeHtml(s.source || s.document_id || 'Source')}</span>`
-      ).join('');
+      const chips = extra.sources.slice(0, 6).map(s => {
+        const id    = escapeHtml(s.doc_id || s.source || s.document_id || '');
+        const type  = escapeHtml(s.doc_type || '');
+        const label = id ? (type ? `${id} · ${type}` : id) : 'Source';
+        return `<span class="source-chip">📄 ${label}</span>`;
+      }).join('');
       bodyHtml += `<div class="sources">${chips}</div>`;
     }
-    // Aggregation answer
+    // Aggregation answer (ClickHouse NL→SQL result)
     if (extra.aggregation_answer) {
       bodyHtml += `<div class="agg-box">📊 <strong>Analytics:</strong> ${escapeHtml(extra.aggregation_answer)}</div>`;
     }
