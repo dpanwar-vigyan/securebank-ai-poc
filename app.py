@@ -39,7 +39,7 @@ def _photo_html(size: int = 48) -> str:
 # ---------------------------------------------------------------------------
 # Password gate — shown before anything else loads
 # ---------------------------------------------------------------------------
-_DEMO_PASSWORD = os.getenv("APP_PASSWORD", "securebank2025")
+_DEMO_PASSWORD = os.getenv("APP_PASSWORD", "SecureBank@2025")
 try:
     import streamlit as _st
     _DEMO_PASSWORD = _st.secrets.get("APP_PASSWORD", _DEMO_PASSWORD)
