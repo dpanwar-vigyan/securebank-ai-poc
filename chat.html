@@ -143,6 +143,11 @@
     font-size:11px; color:#0055a5; font-weight:500;
     background:#eef4ff; border:1px solid #c5d8f5;
     padding:3px 9px; border-radius:10px;
+    transition:all .15s;
+  }
+  .source-chip[onclick]:hover {
+    background:#ddeeff; border-color:#0055a5;
+    transform:translateY(-1px); box-shadow:0 2px 8px rgba(0,60,160,0.15);
   }
   .cached-badge {
     display:inline-flex; align-items:center; gap:4px;
@@ -393,13 +398,16 @@ function appendMessage(role, content, extra) {
     if (extra.cached) {
       bodyHtml += `<div class="cached-badge">⚡ Cached response</div>`;
     }
-    // Sources — show doc ID + type only, never internal paths or PII
+    // Sources — clickable chips that drill into the specific document
     if (extra.sources && extra.sources.length) {
       const chips = extra.sources.slice(0, 6).map(s => {
         const id    = escapeHtml(s.doc_id || s.source || s.document_id || '');
         const type  = escapeHtml(s.doc_type || '');
         const label = id ? (type ? `${id} · ${type}` : id) : 'Source';
-        return `<span class="source-chip">📄 ${label}</span>`;
+        const query = id ? `Tell me about ${s.doc_type || 'document'} ${s.doc_id}` : '';
+        const click = query ? `onclick="drillInto('${escapeHtml(query)}')" title="Click to open this document"` : '';
+        const style = query ? 'cursor:pointer;' : '';
+        return `<span class="source-chip" ${click} style="${style}">📄 ${label} ${query ? '<span style="opacity:.6;font-size:10px">↗</span>' : ''}</span>`;
       }).join('');
       bodyHtml += `<div class="sources">${chips}</div>`;
     }
@@ -503,6 +511,13 @@ async function sendMessage() {
 // ── Sample questions ──────────────────────────────────────────────────────────
 function sendSample(el) {
   document.getElementById('queryInput').value = el.textContent;
+  sendMessage();
+}
+
+// ── Drill into a source document ─────────────────────────────────────────────
+function drillInto(query) {
+  if (isLoading) return;
+  document.getElementById('queryInput').value = query;
   sendMessage();
 }
 </script>
