@@ -28,6 +28,12 @@ Parameters:
     Default: ""
     Description: Optional API key for demo access (X-Demo-Key header). Leave blank to disable.
 
+  ClickHousePassword:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: ClickHouse Cloud password for NL→SQL aggregation queries.
+
   Stage:
     Type: String
     Default: prod
@@ -42,10 +48,10 @@ Globals:
       Variables:
         S3_VECTORS_BUCKET:  !Ref VectorsBucket
         BEDROCK_REGION:     !Ref BedrockRegion
-        CLICKHOUSE_HOST:    !Ref ClickHouseHost
-        CLICKHOUSE_USER:    !Ref ClickHouseUser
-        DEMO_API_KEY:       !Ref DemoApiKey
-        # Secrets (CLICKHOUSE_PASSWORD, LLM_MODEL) passed via SSM or env override
+        CLICKHOUSE_HOST:     !Ref ClickHouseHost
+        CLICKHOUSE_USER:     !Ref ClickHouseUser
+        CLICKHOUSE_PASSWORD: !Ref ClickHousePassword
+        DEMO_API_KEY:        !Ref DemoApiKey
 
 Resources:
 

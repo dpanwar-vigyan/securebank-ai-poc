@@ -286,13 +286,13 @@
 
 <script>
 const API_URL  = 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com/ask';
-const PASSWORD = 'SecureBank@2025';
+const PASSWORDS = ['SecureBank@2025', 'Demo123'];
 const IT_EMAIL = 'dinesh.s.panwar@gmail.com';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 function checkPassword() {
   const val = document.getElementById('gateInput').value;
-  if (val === PASSWORD) {
+  if (PASSWORDS.includes(val)) {
     sessionStorage.setItem('askmybank_auth', '1');
     document.getElementById('gate').style.display = 'none';
     document.getElementById('chatShell').classList.add('visible');

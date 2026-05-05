@@ -7,7 +7,7 @@ s3_prefix = "askmybank-api"
 region = "us-east-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "VectorsBucket=\"askmybank-vectors\" BedrockRegion=\"us-east-1\" ClickHouseHost=\"u52z4ehjt5.ap-southeast-2.aws.clickhouse.cloud\" ClickHouseUser=\"default\" Stage=\"prod\" DemoApiKey=\"askmybank-demo-2025\""
+parameter_overrides = "VectorsBucket=\"askmybank-vectors\" BedrockRegion=\"us-east-1\" ClickHouseHost=\"u52z4ehjt5.ap-southeast-2.aws.clickhouse.cloud\" ClickHouseUser=\"default\" ClickHousePassword=\"g0qcwNqFw~Psg\" Stage=\"prod\" DemoApiKey=\"askmybank-demo-2025\""
 image_repositories = []
 
 [default.global.parameters]
