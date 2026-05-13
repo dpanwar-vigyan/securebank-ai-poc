@@ -212,55 +212,68 @@ def detect_content_type(query: str, sources: list | None = None) -> str:
     return "general"
 
 
-def get_hitl_options(content_type: str) -> list[dict]:
+def get_hitl_options(content_type: str, sources: list | None = None) -> list[dict]:
     """
     Return the list of HITL actions available for a given content type.
-    Each action has an id, label, icon and description for the UI.
+
+    Reopen Case is ONLY offered when there is exactly ONE source document
+    (i.e. the banker is looking at a specific case, not a list).
+    The case ID is embedded in the label so it's unambiguous in the UI.
     """
     catch_all = {
-        "id":    "escalate_to_it",
-        "label": "Not what I need — Escalate",
-        "icon":  "🚨",
-        "desc":  "Flag this response for IT/Content team review",
+        "id":       "escalate_to_it",
+        "label":    "Not what I need — Escalate",
+        "icon":     "🚨",
+        "desc":     "Flag this response for IT/Content team review",
         "platform": "temporal",
     }
 
     if content_type in ("dispute", "complaint"):
-        return [
-            {
-                "id":       "reopen_case",
-                "label":    "Reopen Case",
-                "icon":     "🔄",
-                "desc":     "Raise a back-office request to reopen this closed case",
-                "platform": "temporal",
-                "needs_note": True,
-            },
-            catch_all,
-        ]
+        # Reopen Case only when exactly ONE specific case is in context
+        single_doc = sources and len(sources) == 1
+        case_id    = sources[0].get("doc_id", "") if single_doc else ""
+        if single_doc and case_id:
+            return [
+                {
+                    "id":         "reopen_case",
+                    "label":      f"Reopen {case_id}",
+                    "icon":       "🔄",
+                    "desc":       f"Raise a back-office request to reopen closed case {case_id}",
+                    "platform":   "temporal",
+                    "needs_note": True,
+                    "case_id":    case_id,
+                },
+                catch_all,
+            ]
+        # Multiple cases returned → catch-all only (ambiguous which to reopen)
+        return [catch_all]
+
     if content_type == "estatement":
         return [
             {
-                "id":       "send_duplicate",
-                "label":    "Send Duplicate Copy",
-                "icon":     "📨",
-                "desc":     "Request a duplicate statement sent to an authorised address",
-                "platform": "orkes",
+                "id":            "send_duplicate",
+                "label":         "Send Duplicate Copy",
+                "icon":          "📨",
+                "desc":          "Request a duplicate statement sent to an authorised address",
+                "platform":      "orkes",
                 "needs_address": True,
             },
             catch_all,
         ]
+
     if content_type == "legal_bulk":
         return [
             {
-                "id":       "legal_export",
-                "label":    "Export to Legal S3",
-                "icon":     "📦",
-                "desc":     "Package documents + AI summary letter → legal secure S3 bucket",
-                "platform": "orkes",
+                "id":         "legal_export",
+                "label":      "Export to Legal S3",
+                "icon":       "📦",
+                "desc":       "Package documents + AI summary letter → legal secure S3 bucket",
+                "platform":   "orkes",
                 "needs_note": True,
             },
             catch_all,
         ]
+
     # general → catch-all only
     return [catch_all]
 
@@ -674,7 +687,7 @@ Please answer based only on the context above. Cite document IDs in your respons
             "filters_applied": filters,
             "query_type":      "content",
             "content_type":    ct,
-            "hitl_options":    get_hitl_options(ct),
+            "hitl_options":    get_hitl_options(ct, sources),
         }
 
     # ── Main entry point ────────────────────────────────────────────────────

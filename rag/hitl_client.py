@@ -15,15 +15,23 @@ Used by:
 
 import json
 import os
+import urllib.request
+import urllib.error
 import uuid
 from datetime import datetime
 
 import clickhouse_connect
 import rag.config  # noqa: F401 — loads .env + st.secrets into os.environ
 
-CH_HOST = os.getenv("CLICKHOUSE_HOST")
-CH_USER = os.getenv("CLICKHOUSE_USER")
-CH_PASS = os.getenv("CLICKHOUSE_PASSWORD")
+CH_HOST          = os.getenv("CLICKHOUSE_HOST")
+CH_USER          = os.getenv("CLICKHOUSE_USER")
+CH_PASS          = os.getenv("CLICKHOUSE_PASSWORD")
+ORKES_API_URL    = os.getenv("ORKES_API_URL", "").rstrip("/")
+ORKES_KEY_ID     = os.getenv("ORKES_KEY_ID", "")
+ORKES_KEY_SECRET = os.getenv("ORKES_KEY_SECRET", "")
+
+# Cached Orkes token (avoids re-auth on every warm Lambda invocation)
+_orkes_token_cache: dict = {}
 
 # ── Platform assignment per action ─────────────────────────────────────────────
 ACTION_PLATFORM = {
@@ -273,6 +281,87 @@ class HITLClient:
             "created_at": now.isoformat(),
             "message":    "Your feedback has been logged. The IT/Content team will be notified.",
         }
+
+
+    # ── Trigger Orkes workflow ─────────────────────────────────────────────────
+    def trigger_orkes_workflow(
+        self,
+        workflow_name: str,
+        workflow_input: dict,
+        correlation_id: str = "",
+    ) -> str:
+        """
+        Start an Orkes Conductor workflow via HTTP API.
+        Returns the workflow instance ID (stored in backoffice_requests.workflow_run_id).
+        Returns "" if Orkes is not configured (graceful degradation).
+        """
+        import time
+        if not all([ORKES_API_URL, ORKES_KEY_ID, ORKES_KEY_SECRET]):
+            print("HITLClient: Orkes not configured — skipping workflow trigger")
+            return ""
+
+        try:
+            # ── Get / refresh token ──────────────────────────────────────────
+            now = time.time()
+            if not (_orkes_token_cache.get("token") and
+                    _orkes_token_cache.get("exp", 0) - now > 300):
+                payload = json.dumps({
+                    "keyId": ORKES_KEY_ID, "keySecret": ORKES_KEY_SECRET
+                }).encode()
+                req = urllib.request.Request(
+                    f"{ORKES_API_URL}/token",
+                    data=payload,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = json.loads(resp.read())
+                    _orkes_token_cache["token"] = data.get("token") or data.get("access_token")
+                    _orkes_token_cache["exp"]   = now + 82_800
+
+            token = _orkes_token_cache["token"]
+
+            # ── Start workflow ───────────────────────────────────────────────
+            body = json.dumps({
+                "name":          workflow_name,
+                "version":       1,
+                "input":         workflow_input,
+                "correlationId": correlation_id or workflow_input.get("ticket_id", ""),
+            }).encode()
+            req = urllib.request.Request(
+                f"{ORKES_API_URL}/workflow",
+                data=body,
+                headers={
+                    "X-Authorization": token,   # Orkes uses X-Authorization
+                    "Content-Type":    "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                workflow_id = resp.read().decode().strip().strip('"')
+                print(f"HITLClient: Orkes workflow started — {workflow_name} / {workflow_id}")
+                return workflow_id
+
+        except Exception as exc:
+            print(f"HITLClient: Orkes trigger failed ({exc}) — continuing without workflow")
+            return ""
+
+    def _store_workflow_run_id(self, ticket_id: str, workflow_run_id: str):
+        """Write the Orkes workflow instance ID back to the ClickHouse ticket."""
+        if not workflow_run_id:
+            return
+        ch = self._get_ch()
+        if not ch:
+            return
+        try:
+            ch.command(
+                "ALTER TABLE banking_docs.backoffice_requests "
+                "UPDATE workflow_run_id = {wid:String} "
+                "WHERE ticket_id = {tid:String}",
+                parameters={"wid": workflow_run_id, "tid": ticket_id},
+            )
+        except Exception as exc:
+            print(f"HITLClient: could not store workflow_run_id ({exc})")
 
 
 # ── Exceptions ─────────────────────────────────────────────────────────────────

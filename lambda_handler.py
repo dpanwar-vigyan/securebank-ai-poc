@@ -61,6 +61,7 @@ class HITLActionRequest(BaseModel):
     original_query:   str = ""
     user_note:        str = ""
     delivery_address: str = ""          # required for send_duplicate
+    customer_id:      str = ""          # passed for eStatement / address verify
 
 class HITLDecisionRequest(BaseModel):
     decision:      str   # "approved" | "rejected"
@@ -71,6 +72,18 @@ class ContentGapRequest(BaseModel):
     original_query: str
     ai_response:    str
     user_feedback:  str
+
+class PipelineIngestRequest(BaseModel):
+    s3_key:        str               # e.g. "raw-docs/new_complaint.pdf"
+    doc_type:      str = ""          # Complaint | Dispute | eStatement | AccountMaintenance
+    customer_id:   str = ""
+    source_system: str = "manual"    # "manual" | "s3_event"
+
+# Orkes workflow names
+_ORKES_WORKFLOWS = {
+    "send_duplicate": "askmybank_estatement_duplicate",
+    "legal_export":   "askmybank_document_pipeline",   # reuse pipeline for bulk
+}
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -136,6 +149,25 @@ def create_hitl_ticket(req: HITLActionRequest):
             user_note        = req.user_note,
             delivery_address = req.delivery_address,
         )
+
+        # ── Trigger Orkes workflow for Orkes-platform actions ────────────────
+        orkes_wf = _ORKES_WORKFLOWS.get(req.action)
+        if orkes_wf:
+            wf_input = {
+                "ticket_id":       ticket["ticket_id"],
+                "doc_ids":         req.doc_ids,
+                "delivery_address":req.delivery_address,
+                "original_query":  req.original_query,
+                "customer_id":     req.customer_id,
+            }
+            wf_id = hitl.trigger_orkes_workflow(orkes_wf, wf_input, ticket["ticket_id"])
+            if wf_id:
+                hitl._store_workflow_run_id(ticket["ticket_id"], wf_id)
+                ticket["workflow_run_id"] = wf_id
+                ticket["orkes_ui_url"]    = (
+                    f"https://developer.orkescloud.com/execution/{wf_id}"
+                )
+
         return {"type": "ticket", **ticket}
     except HITLUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
@@ -211,6 +243,49 @@ def log_content_gap(req: ContentGapRequest):
         return result
     except HITLUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+
+
+# ── Document ingestion pipeline trigger ───────────────────────────────────────
+@app.post("/pipeline/ingest")
+def trigger_pipeline(req: PipelineIngestRequest):
+    """
+    Trigger the Orkes document ingestion pipeline workflow.
+    Starts: Textract → chunk → embed (parallel) → S3 vectors + ClickHouse.
+
+    Example:
+        POST /pipeline/ingest
+        {"s3_key": "raw-docs/cmp_new.pdf", "doc_type": "Complaint", "customer_id": "CUST00099"}
+    """
+    if not req.s3_key:
+        raise HTTPException(status_code=400, detail="s3_key is required")
+
+    wf_input = {
+        "s3_key":        req.s3_key,
+        "doc_type":      req.doc_type,
+        "customer_id":   req.customer_id,
+        "source_system": req.source_system,
+    }
+
+    wf_id = hitl.trigger_orkes_workflow(
+        workflow_name   = "askmybank_document_pipeline",
+        workflow_input  = wf_input,
+        correlation_id  = f"pipeline-{req.s3_key}",
+    )
+
+    if not wf_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Orkes not configured or unavailable — check ORKES_* env vars",
+        )
+
+    return {
+        "workflow_id":   wf_id,
+        "workflow_name": "askmybank_document_pipeline",
+        "s3_key":        req.s3_key,
+        "doc_type":      req.doc_type,
+        "orkes_ui_url":  f"https://developer.orkescloud.com/execution/{wf_id}",
+        "status":        "started",
+    }
 
 
 # ── Lambda handler ────────────────────────────────────────────────────────────

@@ -191,6 +191,7 @@
   }
   .hitl-modal input:focus, .hitl-modal textarea:focus { border-color:#0055a5; }
   .hitl-modal textarea { resize:vertical; min-height:70px; }
+  .hitl-case-id { display:inline-flex; align-items:center; gap:6px; background:#fff8e8; border:1.5px solid #e8c040; border-radius:8px; padding:5px 13px; font-size:13px; font-weight:800; color:#7a5000; margin-bottom:14px; letter-spacing:.3px; }
   .hitl-modal-platform { display:inline-flex; align-items:center; gap:6px; background:#f0f4ff; border:1px solid #c0d0f0; border-radius:8px; padding:4px 12px; font-size:11px; font-weight:700; color:#0033aa; margin-bottom:18px; }
   .hitl-modal-actions { display:flex; gap:10px; }
   .hitl-modal-submit { flex:1; padding:11px; border-radius:10px; border:none; cursor:pointer; background:linear-gradient(135deg,#0077cc,#0055a5); color:#fff; font-size:14px; font-weight:700; font-family:'Inter',sans-serif; transition:all .2s; }
@@ -327,6 +328,7 @@
   <div class="hitl-modal">
     <div class="hitl-modal-title" id="hitlModalTitle">Raise Back-Office Request</div>
     <div class="hitl-modal-sub"   id="hitlModalSub"></div>
+    <div id="hitlCaseIdBadge" style="display:none" class="hitl-case-id"></div>
     <div class="hitl-modal-platform" id="hitlModalPlatform"></div>
 
     <div id="hitlNoteGroup">
@@ -709,6 +711,14 @@ function showHITLModal(action, docIds, query, badgeEl, opt = {}) {
   document.getElementById('hitlModalTitle').textContent    = LABELS[action]  || action;
   document.getElementById('hitlModalSub').textContent      = DESCS[action]   || '';
   document.getElementById('hitlModalPlatform').textContent = PLATFORMS[opt.platform] || '';
+  // Show case ID badge for reopen_case so banker always sees which case
+  const caseIdBadge = document.getElementById('hitlCaseIdBadge');
+  if (opt.case_id) {
+    caseIdBadge.textContent = `📋 Case: ${opt.case_id}`;
+    caseIdBadge.style.display = 'inline-flex';
+  } else {
+    caseIdBadge.style.display = 'none';
+  }
   document.getElementById('hitlNote').value = '';
   document.getElementById('hitlAddress').value = '';
 
