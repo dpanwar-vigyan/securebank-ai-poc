@@ -141,14 +141,18 @@ Resources:
         AllowOrigins:
           - "https://askmybank.ai"
           - "https://www.askmybank.ai"
-          - "http://localhost:3000"   # local dev
+          - "https://dpanwar-vigyan.github.io"   # back-office review UI
+          - "http://localhost:3000"               # local dev
+          - "http://localhost:8080"               # local dev alt
         AllowMethods:
           - GET
           - POST
+          - PUT
           - OPTIONS
         AllowHeaders:
           - Content-Type
           - Authorization
+          - X-Backoffice-Key                      # back-office auth header
 
   # ── EventBridge Warming Rule — pings Lambda every 5 minutes ────────────────
   WarmingRule:
