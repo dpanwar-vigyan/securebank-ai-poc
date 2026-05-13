@@ -72,10 +72,12 @@ WORKFLOW_DEF = {
             "name":              "poll_approval_loop",
             "taskReferenceName": "poll_loop_ref",
             "type":              "DO_WHILE",
+            # In Orkes's JS evaluator, $ maps each task ref-name directly to its
+            # outputData (no extra ['output'] wrapper, no __N suffix).
+            # The base name (check_status_ref) resolves to the latest iteration's output.
             "loopCondition": (
-                "if ( $.check_status_ref['output']['ticket_status'] == 'pending' "
-                "|| $.check_status_ref['output']['ticket_status'] == 'in_progress' "
-                ") { true; } else { false; }"
+                "var st = $.check_status_ref['ticket_status']; "
+                "if (st == 'pending' || st == 'in_progress') { true; } else { false; }"
             ),
             "loopOver": [
                 # 3a. Wait 20 seconds between polls
