@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AskMyBank — Back-Office Review</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; background:#f0f4f9; color:#1a2540; min-height:100vh; }
+
+  nav { background:rgba(0,51,102,0.97); padding:0 24px; height:52px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 20px rgba(0,0,0,0.25); }
+  .nav-brand { color:#fff; font-weight:800; font-size:15px; display:flex; align-items:center; gap:9px; }
+  .nav-badge { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; background:#e05050; color:#fff; padding:2px 9px; border-radius:12px; }
+  .nav-right a { color:#aaccee; font-size:12px; text-decoration:none; }
+
+  .container { max-width:1100px; margin:28px auto; padding:0 20px; }
+
+  /* ── Auth gate ── */
+  .auth-gate { background:#fff; border-radius:16px; padding:40px; max-width:400px; margin:60px auto; text-align:center; box-shadow:0 8px 30px rgba(0,20,80,0.12); }
+  .auth-gate h2 { font-size:20px; font-weight:800; margin-bottom:8px; }
+  .auth-gate p  { font-size:13px; color:#667788; margin-bottom:24px; }
+  .auth-gate input { width:100%; padding:11px 14px; border:1.5px solid #c8d8ec; border-radius:9px; font-size:14px; font-family:'Inter',sans-serif; outline:none; margin-bottom:12px; }
+  .auth-gate input:focus { border-color:#0055a5; }
+  .auth-gate button { width:100%; padding:12px; border-radius:9px; border:none; background:linear-gradient(135deg,#0077cc,#0055a5); color:#fff; font-size:14px; font-weight:700; font-family:'Inter',sans-serif; cursor:pointer; }
+  .auth-error { color:#cc3300; font-size:12px; margin-top:8px; display:none; }
+
+  /* ── Dashboard ── */
+  .dashboard { display:none; }
+  .page-title { font-size:22px; font-weight:800; color:#0a1a30; margin-bottom:4px; }
+  .page-sub   { font-size:13px; color:#667788; margin-bottom:24px; }
+
+  .stats-row { display:flex; gap:14px; margin-bottom:24px; flex-wrap:wrap; }
+  .stat-card { background:#fff; border-radius:12px; padding:16px 20px; flex:1; min-width:140px; box-shadow:0 2px 10px rgba(0,20,80,0.07); border:1px solid #e0eaf5; }
+  .stat-label { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#7799bb; margin-bottom:4px; }
+  .stat-value { font-size:28px; font-weight:800; color:#003366; }
+
+  .refresh-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; border:1.5px solid #c0d0e8; background:#fff; color:#334455; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; margin-bottom:20px; transition:all .15s; }
+  .refresh-btn:hover { background:#e8f0ff; border-color:#7799cc; }
+
+  /* ── Ticket cards ── */
+  .tickets-list { display:flex; flex-direction:column; gap:14px; }
+  .ticket-card { background:#fff; border-radius:14px; padding:20px 22px; box-shadow:0 2px 10px rgba(0,20,80,0.07); border:1px solid #e0eaf5; border-left:4px solid #c0ccd8; }
+  .ticket-card.reopen_case    { border-left-color:#e8a020; }
+  .ticket-card.send_duplicate { border-left-color:#0077cc; }
+  .ticket-card.legal_export   { border-left-color:#7744cc; }
+  .ticket-card.escalate_to_it { border-left-color:#e05050; }
+
+  .ticket-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .ticket-id    { font-size:13px; font-weight:800; color:#003366; }
+  .ticket-meta  { font-size:12px; color:#667788; margin-top:3px; }
+  .ticket-action-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 11px; border-radius:12px; font-size:11px; font-weight:700; }
+  .badge-reopen_case    { background:#fff8e8; color:#8a5a00; border:1px solid #e8c040; }
+  .badge-send_duplicate { background:#e8f4ff; color:#003388; border:1px solid #99ccff; }
+  .badge-legal_export   { background:#f0ecff; color:#440088; border:1px solid #cc99ff; }
+  .badge-escalate_to_it { background:#fff0f0; color:#880000; border:1px solid #ffaaaa; }
+
+  .ticket-query { font-size:13px; color:#1a2540; margin:12px 0 6px; background:#f5f8ff; border-radius:8px; padding:8px 12px; border-left:3px solid #99bbdd; font-style:italic; }
+  .ticket-note  { font-size:12px; color:#556677; margin-bottom:6px; }
+  .ticket-addr  { font-size:12px; background:#e8f4e8; border-radius:6px; padding:4px 10px; color:#224422; display:inline-block; margin-bottom:10px; }
+  .ticket-docs  { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:12px; }
+  .doc-chip { background:#e8eeff; border:1px solid #9ab; border-radius:10px; padding:2px 9px; font-size:11px; font-weight:600; color:#003366; }
+
+  .platform-badge { display:inline-flex; align-items:center; gap:5px; background:#f0f4ff; border:1px solid #c0d0f0; border-radius:8px; padding:3px 10px; font-size:11px; font-weight:700; color:#0033aa; margin-bottom:12px; }
+
+  .decision-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .resolver-input { flex:1; min-width:160px; padding:8px 12px; border:1.5px solid #c8d8ec; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; outline:none; }
+  .resolver-input:focus { border-color:#0055a5; }
+  .approve-btn { padding:8px 18px; border-radius:8px; border:none; background:linear-gradient(135deg,#00aa55,#008844); color:#fff; font-size:13px; font-weight:700; font-family:'Inter',sans-serif; cursor:pointer; transition:all .15s; }
+  .approve-btn:hover { transform:translateY(-1px); box-shadow:0 3px 10px rgba(0,150,70,0.3); }
+  .reject-btn  { padding:8px 18px; border-radius:8px; border:1.5px solid #e05050; background:#fff; color:#cc2222; font-size:13px; font-weight:700; font-family:'Inter',sans-serif; cursor:pointer; transition:all .15s; }
+  .reject-btn:hover  { background:#fff0f0; }
+
+  .decision-done { font-size:13px; font-weight:700; padding:8px 14px; border-radius:8px; }
+  .decision-done.approved { background:#e8fff2; color:#006630; border:1px solid #80ddaa; }
+  .decision-done.rejected { background:#fff0f0; color:#880000; border:1px solid #ffaaaa; }
+
+  .empty-state { text-align:center; padding:60px 20px; color:#8899aa; }
+  .empty-state .icon { font-size:48px; margin-bottom:12px; }
+  .empty-state h3  { font-size:17px; font-weight:700; margin-bottom:6px; }
+  .empty-state p   { font-size:13px; }
+
+  .loading-state { text-align:center; padding:40px; color:#8899aa; font-size:14px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <span>🏦</span> AskMyBank.ai
+    <span class="nav-badge">BACK OFFICE</span>
+  </div>
+  <div class="nav-right">
+    <a href="../chat.html">← Return to Chat</a>
+  </div>
+</nav>
+
+<!-- Auth gate -->
+<div class="container" id="authGate">
+  <div class="auth-gate">
+    <div style="font-size:40px;margin-bottom:12px">🔐</div>
+    <h2>Back-Office Access</h2>
+    <p>Enter your back-office API key to review and action pending HITL requests.</p>
+    <input type="password" id="authInput" placeholder="Back-office API key" />
+    <button onclick="doAuth()">Access Dashboard →</button>
+    <div class="auth-error" id="authError">Invalid key — contact IT for access.</div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div class="container dashboard" id="dashboard">
+  <div class="page-title">📋 HITL Review Queue</div>
+  <div class="page-sub">Back-office requests raised via AskMyBank.ai chat — review and approve or reject below.</div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value" id="statPending">—</div></div>
+    <div class="stat-card"><div class="stat-label">Loaded</div><div class="stat-value" id="statLoaded">—</div></div>
+  </div>
+
+  <button class="refresh-btn" onclick="loadTickets()">🔄 Refresh</button>
+
+  <div class="tickets-list" id="ticketsList">
+    <div class="loading-state">Loading tickets…</div>
+  </div>
+</div>
+
+<script>
+const API_BASE  = 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com';
+let   _apiKey   = '';
+
+const ACTION_ICONS = {
+  reopen_case:    '🔄',
+  send_duplicate: '📨',
+  legal_export:   '📦',
+  escalate_to_it: '🚨',
+};
+const ACTION_LABELS = {
+  reopen_case:    'Reopen Case',
+  send_duplicate: 'Send Duplicate Copy',
+  legal_export:   'Export to Legal S3',
+  escalate_to_it: 'Escalate to IT',
+};
+const PLATFORM_LABELS = {
+  temporal: '⚙️ Temporal',
+  orkes:    '🎼 Orkes Conductor',
+};
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+document.getElementById('authInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doAuth();
+});
+
+async function doAuth() {
+  const key = document.getElementById('authInput').value.trim();
+  if (!key) return;
+
+  // Test the key by hitting /hitl/pending
+  try {
+    const res = await fetch(`${API_BASE}/hitl/pending`, {
+      headers: { 'X-Backoffice-Key': key },
+    });
+    if (res.status === 401) {
+      const err = document.getElementById('authError');
+      err.style.display = 'block';
+      setTimeout(() => err.style.display = 'none', 4000);
+      return;
+    }
+    _apiKey = key;
+    document.getElementById('authGate').style.display  = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    renderTickets(await res.json());
+  } catch (err) {
+    alert('Could not reach the API: ' + err.message);
+  }
+}
+
+// ── Load & render tickets ─────────────────────────────────────────────────────
+async function loadTickets() {
+  document.getElementById('ticketsList').innerHTML = '<div class="loading-state">Loading…</div>';
+  try {
+    const res  = await fetch(`${API_BASE}/hitl/pending`, {
+      headers: { 'X-Backoffice-Key': _apiKey },
+    });
+    const data = await res.json();
+    renderTickets(data);
+  } catch (err) {
+    document.getElementById('ticketsList').innerHTML =
+      `<div class="loading-state">⚠️ Error: ${err.message}</div>`;
+  }
+}
+
+function renderTickets(data) {
+  const tickets = data.tickets || [];
+  document.getElementById('statPending').textContent = data.count ?? tickets.length;
+  document.getElementById('statLoaded').textContent  = tickets.length;
+
+  const list = document.getElementById('ticketsList');
+  if (!tickets.length) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">🎉</div>
+        <h3>No pending requests</h3>
+        <p>All caught up — new requests from the chat will appear here.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = '';
+  tickets.forEach(t => list.appendChild(buildTicketCard(t)));
+}
+
+function buildTicketCard(t) {
+  const card = document.createElement('div');
+  card.className = `ticket-card ${t.action}`;
+  card.id = `card_${t.ticket_id}`;
+
+  const icon    = ACTION_ICONS[t.action]  || '📋';
+  const label   = ACTION_LABELS[t.action] || t.action;
+  const platLbl = PLATFORM_LABELS[t.platform] || t.platform;
+  const docs    = (t.doc_ids || []).map(d => `<span class="doc-chip">${esc(d)}</span>`).join('');
+  const addrRow = t.delivery_address
+    ? `<div class="ticket-addr">📮 Delivery: ${esc(t.delivery_address)}</div>`
+    : '';
+  const noteRow = t.user_note
+    ? `<div class="ticket-note">💬 ${esc(t.user_note)}</div>`
+    : '';
+
+  const createdAt = new Date(t.created_at + (t.created_at.endsWith('Z') ? '' : 'Z'))
+    .toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+
+  card.innerHTML = `
+    <div class="ticket-header">
+      <div>
+        <div class="ticket-id">${esc(t.ticket_id)}</div>
+        <div class="ticket-meta">Raised ${createdAt} &nbsp;·&nbsp; Status: <strong>${esc(t.status)}</strong></div>
+      </div>
+      <span class="ticket-action-badge badge-${t.action}">${icon} ${esc(label)}</span>
+    </div>
+
+    <div class="ticket-query">"${esc(t.original_query)}"</div>
+
+    ${noteRow}
+    ${addrRow}
+    ${docs ? `<div class="ticket-docs">${docs}</div>` : ''}
+
+    <div class="platform-badge">${platLbl} workflow</div>
+
+    <div class="decision-row" id="dec_${t.ticket_id}">
+      <input class="resolver-input" id="name_${t.ticket_id}" placeholder="Your name (e.g. Sarah M.)" />
+      <button class="approve-btn" onclick="decide('${t.ticket_id}','approved')">✅ Approve</button>
+      <button class="reject-btn"  onclick="decide('${t.ticket_id}','rejected')">❌ Reject</button>
+    </div>
+  `;
+  return card;
+}
+
+// ── Record decision ───────────────────────────────────────────────────────────
+async function decide(ticketId, decision) {
+  const nameEl = document.getElementById(`name_${ticketId}`);
+  const name   = nameEl ? nameEl.value.trim() : '';
+  if (!name) {
+    nameEl && (nameEl.style.borderColor = '#e05050');
+    nameEl && nameEl.focus();
+    return;
+  }
+
+  const decRow = document.getElementById(`dec_${ticketId}`);
+  decRow.innerHTML = '<em style="color:#8899aa;font-size:13px">Submitting…</em>';
+
+  try {
+    const res = await fetch(`${API_BASE}/hitl/${ticketId}/decide`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':    'application/json',
+        'X-Backoffice-Key': _apiKey,
+      },
+      body: JSON.stringify({ decision, resolver_name: name }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      decRow.innerHTML = `<span style="color:#cc3300;font-size:13px">⚠️ ${err.detail}</span>`;
+      return;
+    }
+
+    decRow.innerHTML = `
+      <div class="decision-done ${decision}">
+        ${decision === 'approved' ? '✅ Approved' : '❌ Rejected'} by ${esc(name)}
+      </div>`;
+
+    // Fade card out after 2s
+    setTimeout(() => {
+      const card = document.getElementById(`card_${ticketId}`);
+      if (card) {
+        card.style.transition = 'opacity .5s';
+        card.style.opacity    = '0.3';
+      }
+      // Refresh stats
+      document.getElementById('statPending').textContent =
+        Math.max(0, (parseInt(document.getElementById('statPending').textContent) || 1) - 1);
+    }, 2000);
+
+  } catch (err) {
+    decRow.innerHTML = `<span style="color:#cc3300;font-size:13px">⚠️ Network error: ${err.message}</span>`;
+  }
+}
+
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

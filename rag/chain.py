@@ -171,6 +171,100 @@ def is_aggregation_query(query: str) -> bool:
     return any(kw in q for kw in AGGREGATION_KEYWORDS)
 
 
+# ── HITL content-type detection ───────────────────────────────────────────────
+_DISPUTE_KW   = ["dispute", "dsp", "unauthorised", "unauthorized", "fraud",
+                 "chargeback", "merchant dispute", "atm error", "wire transfer error"]
+_COMPLAINT_KW = ["complaint", "cmp", "complain", "mis-selling", "misselling",
+                 "poor service", "staff conduct", "fee dispute", "mortgage complaint"]
+_STATEMENT_KW = ["statement", "stmt", "estatement", "e-statement",
+                 "closing balance", "bank statement", "monthly statement"]
+_LEGAL_KW     = ["legal", "regulator", "regulatory", "bulk export", "fca", "pra",
+                 "ombudsman bulk", "legal team", "bulk request", "legal pack"]
+
+def detect_content_type(query: str, sources: list | None = None) -> str:
+    """
+    Classify the query/response into a HITL content type.
+    Drives which action buttons appear in the chat UI.
+
+    Returns: "dispute" | "complaint" | "estatement" | "legal_bulk" | "general"
+    """
+    q = query.lower()
+
+    if any(kw in q for kw in _DISPUTE_KW):
+        return "dispute"
+    if any(kw in q for kw in _COMPLAINT_KW):
+        return "complaint"
+    if any(kw in q for kw in _STATEMENT_KW):
+        return "estatement"
+    if any(kw in q for kw in _LEGAL_KW):
+        return "legal_bulk"
+
+    # Infer from RAG source doc_types
+    if sources:
+        types = {(s.get("doc_type") or "").lower() for s in sources}
+        if any("dispute" in t for t in types):
+            return "dispute"
+        if any("complaint" in t for t in types):
+            return "complaint"
+        if any("statement" in t for t in types):
+            return "estatement"
+
+    return "general"
+
+
+def get_hitl_options(content_type: str) -> list[dict]:
+    """
+    Return the list of HITL actions available for a given content type.
+    Each action has an id, label, icon and description for the UI.
+    """
+    catch_all = {
+        "id":    "escalate_to_it",
+        "label": "Not what I need — Escalate",
+        "icon":  "🚨",
+        "desc":  "Flag this response for IT/Content team review",
+        "platform": "temporal",
+    }
+
+    if content_type in ("dispute", "complaint"):
+        return [
+            {
+                "id":       "reopen_case",
+                "label":    "Reopen Case",
+                "icon":     "🔄",
+                "desc":     "Raise a back-office request to reopen this closed case",
+                "platform": "temporal",
+                "needs_note": True,
+            },
+            catch_all,
+        ]
+    if content_type == "estatement":
+        return [
+            {
+                "id":       "send_duplicate",
+                "label":    "Send Duplicate Copy",
+                "icon":     "📨",
+                "desc":     "Request a duplicate statement sent to an authorised address",
+                "platform": "orkes",
+                "needs_address": True,
+            },
+            catch_all,
+        ]
+    if content_type == "legal_bulk":
+        return [
+            {
+                "id":       "legal_export",
+                "label":    "Export to Legal S3",
+                "icon":     "📦",
+                "desc":     "Package documents + AI summary letter → legal secure S3 bucket",
+                "platform": "orkes",
+                "needs_note": True,
+            },
+            catch_all,
+        ]
+    # general → catch-all only
+    return [catch_all]
+
+
 # ---------------------------------------------------------------------------
 # Filter extraction
 # ---------------------------------------------------------------------------
@@ -477,15 +571,21 @@ class BankingRAG:
         ch = self._get_ch()
         if ch and ch.available:
             try:
-                return ch.ask(query)
+                result = ch.ask(query)
+                ct = detect_content_type(query)
+                result["content_type"]  = ct
+                result["hitl_options"]  = get_hitl_options(ct)
+                return result
             except ClickHouseUnavailableError:
                 pass   # fall through to ChromaDB
 
         # ── ChromaDB fallback (Streamlit only) ──────────────────────────────────
         if not self.col:
-            return {
+            ct = detect_content_type(query)
+        return {
                 "answer": "⚠️ Aggregation queries require ClickHouse (currently unavailable). Please try again shortly.",
                 "sources": [], "filters_applied": filters, "query_type": "content",
+                "content_type": ct, "hitl_options": get_hitl_options(ct),
             }
 
         agg    = run_aggregation(self.col, query, filters)
@@ -497,12 +597,15 @@ class BankingRAG:
             "Results are based on the indexed document metadata."
         )
 
+        ct = detect_content_type(query)
         return {
             "answer":          answer + note,
             "sources":         [],
             "filters_applied": filters,
             "query_type":      "content",   # renders without SQL panel
             "agg_data":        agg,
+            "content_type":    ct,
+            "hitl_options":    get_hitl_options(ct),
         }
 
     # ── Content RAG path ────────────────────────────────────────────────────
@@ -510,6 +613,7 @@ class BankingRAG:
         chunks = self.retrieve(query, filters)
 
         if not chunks:
+            ct = detect_content_type(query)
             return {
                 "answer": (
                     "No matching documents found for that query.\n\n"
@@ -520,9 +624,11 @@ class BankingRAG:
                     "- Account statements (e.g. *Show me statements for CUST00012*)\n"
                     "- Analytics (e.g. *Total compensation paid by year*)"
                 ),
-                "sources": [],
+                "sources":         [],
                 "filters_applied": filters,
-                "query_type": "content",
+                "query_type":      "content",
+                "content_type":    ct,
+                "hitl_options":    get_hitl_options(ct),
             }
 
         context_parts = []
@@ -561,11 +667,14 @@ Please answer based only on the context above. Cite document IDs in your respons
                 "s3_path":       meta.get("s3_path", ""),
             })
 
+        ct = detect_content_type(query, sources)
         return {
             "answer":          answer,
             "sources":         sources,
             "filters_applied": filters,
             "query_type":      "content",
+            "content_type":    ct,
+            "hitl_options":    get_hitl_options(ct),
         }
 
     # ── Main entry point ────────────────────────────────────────────────────
