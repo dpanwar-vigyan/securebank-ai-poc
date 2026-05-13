@@ -53,16 +53,29 @@ Workers registered ({len(ALL_WORKERS)} tasks):
 
     try:
         from conductor.client.automator.task_handler import TaskHandler
+        import signal, time
         task_handler = TaskHandler(
             workers        = ALL_WORKERS,
             configuration  = config,
             scan_for_annotated_workers = False,
         )
         task_handler.start_processes()
-        task_handler.join(None)   # block until Ctrl+C
 
-    except KeyboardInterrupt:
-        print("\n\n👋 Worker stopped.\n")
+        # Block main thread until Ctrl+C — task runners execute in child processes
+        stop = False
+        def _handle_signal(sig, frame):
+            nonlocal stop
+            stop = True
+        signal.signal(signal.SIGINT,  _handle_signal)
+        signal.signal(signal.SIGTERM, _handle_signal)
+
+        while not stop:
+            time.sleep(1)
+
+        print("\n\n👋 Stopping workers…")
+        task_handler.stop_processes()
+        print("👋 Worker stopped.\n")
+
     except Exception as exc:
         print(f"\n❌ Worker error: {exc}")
         raise
