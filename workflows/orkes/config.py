@@ -107,8 +107,11 @@ def get_orkes_config():
     if not all([ORKES_API_URL, ORKES_KEY_ID, ORKES_KEY_SECRET]):
         raise OrkesConfigError("ORKES_API_URL, ORKES_KEY_ID and ORKES_KEY_SECRET must be set")
 
+    # conductor-python appends /api internally; strip it from our URL if present
+    base = ORKES_API_URL.removesuffix("/api")
+
     return Configuration(
-        base_url               = ORKES_API_URL,
+        base_url               = base,
         authentication_settings = AuthenticationSettings(
             key_id     = ORKES_KEY_ID,
             key_secret = ORKES_KEY_SECRET,
