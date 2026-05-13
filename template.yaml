@@ -28,6 +28,22 @@ Parameters:
     Default: ""
     Description: Optional API key for demo access (X-Demo-Key header). Leave blank to disable.
 
+  OrkesApiUrl:
+    Type: String
+    Default: ""
+    Description: Orkes Conductor API base URL (e.g. https://developer.orkescloud.com/api)
+
+  OrkesKeyId:
+    Type: String
+    Default: ""
+    Description: Orkes application key ID
+
+  OrkesKeySecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Orkes application key secret
+
   ClickHousePassword:
     Type: String
     Default: ""
@@ -52,6 +68,9 @@ Globals:
         CLICKHOUSE_USER:     !Ref ClickHouseUser
         CLICKHOUSE_PASSWORD: !Ref ClickHousePassword
         DEMO_API_KEY:        !Ref DemoApiKey
+        ORKES_API_URL:       !Ref OrkesApiUrl
+        ORKES_KEY_ID:        !Ref OrkesKeyId
+        ORKES_KEY_SECRET:    !Ref OrkesKeySecret
 
 Resources:
 
@@ -75,6 +94,13 @@ Resources:
               Action:
                 - bedrock:InvokeModel
                 - bedrock:InvokeModelWithResponseStream
+              Resource: "*"
+        # Textract — for document pipeline
+        - Statement:
+            - Effect: Allow
+              Action:
+                - textract:StartDocumentTextDetection
+                - textract:GetDocumentTextDetection
               Resource: "*"
       Events:
         # API Gateway HTTP API (cheaper than REST API)
