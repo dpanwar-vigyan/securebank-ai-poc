@@ -160,6 +160,44 @@
   .chat-footer span { font-size:11px; color:#8899aa; }
   .chat-footer a { color:#0055a5; text-decoration:none; }
 
+  /* ── HITL action buttons ── */
+  .hitl-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; padding-top:10px; border-top:1px dashed #dce6f0; }
+  .hitl-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 13px; border-radius:20px; border:1.5px solid; font-size:12px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; transition:all .18s; white-space:nowrap; }
+  .hitl-btn-primary { background:#fff8e8; border-color:#e8a020; color:#8a5a00; }
+  .hitl-btn-primary:hover { background:#ffe8b0; border-color:#c07800; color:#6a3a00; transform:translateY(-1px); box-shadow:0 3px 10px rgba(200,120,0,0.2); }
+  .hitl-btn-danger  { background:#fff0f0; border-color:#e05050; color:#8a1a1a; }
+  .hitl-btn-danger:hover  { background:#ffe0e0; border-color:#bb2020; transform:translateY(-1px); box-shadow:0 3px 10px rgba(200,50,50,0.2); }
+
+  /* Ticket status badge (shown after action triggered) */
+  .ticket-badge { display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 13px; border-radius:10px; font-size:12px; font-weight:600; border:1.5px solid; }
+  .ticket-badge.pending  { background:#fffbe8; border-color:#f0c040; color:#7a5a00; }
+  .ticket-badge.approved { background:#e8fff2; border-color:#40c080; color:#006630; }
+  .ticket-badge.rejected { background:#fff0f0; border-color:#e05050; color:#8a0000; }
+  .ticket-badge.logged   { background:#f0f4ff; border-color:#7799dd; color:#002288; }
+  .ticket-spinner { width:12px; height:12px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ── HITL modal overlay ── */
+  .hitl-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,20,60,0.55); z-index:100; align-items:center; justify-content:center; }
+  .hitl-modal-overlay.open { display:flex; }
+  .hitl-modal { background:#fff; border-radius:18px; padding:32px 28px; width:90%; max-width:440px; box-shadow:0 24px 70px rgba(0,20,80,0.35); }
+  .hitl-modal-title { font-size:17px; font-weight:800; color:#0a1a30; margin-bottom:6px; }
+  .hitl-modal-sub   { font-size:13px; color:#556677; line-height:1.55; margin-bottom:18px; }
+  .hitl-modal label { display:block; font-size:12px; font-weight:700; color:#334455; margin-bottom:5px; }
+  .hitl-modal input, .hitl-modal textarea {
+    width:100%; padding:10px 13px; border:1.5px solid #c8d8ec; border-radius:9px;
+    font-size:13px; font-family:'Inter',sans-serif; color:#1a2540; outline:none;
+    transition:border-color .2s; margin-bottom:14px;
+  }
+  .hitl-modal input:focus, .hitl-modal textarea:focus { border-color:#0055a5; }
+  .hitl-modal textarea { resize:vertical; min-height:70px; }
+  .hitl-modal-platform { display:inline-flex; align-items:center; gap:6px; background:#f0f4ff; border:1px solid #c0d0f0; border-radius:8px; padding:4px 12px; font-size:11px; font-weight:700; color:#0033aa; margin-bottom:18px; }
+  .hitl-modal-actions { display:flex; gap:10px; }
+  .hitl-modal-submit { flex:1; padding:11px; border-radius:10px; border:none; cursor:pointer; background:linear-gradient(135deg,#0077cc,#0055a5); color:#fff; font-size:14px; font-weight:700; font-family:'Inter',sans-serif; transition:all .2s; }
+  .hitl-modal-submit:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,80,200,0.35); }
+  .hitl-modal-cancel { padding:11px 20px; border-radius:10px; border:1.5px solid #c0ccd8; background:#fff; color:#556677; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; }
+  .hitl-modal-cancel:hover { background:#f0f4f9; }
+
   /* ── Mobile ── */
   @media (max-width:680px) {
     .sidebar { display:none; }
@@ -284,8 +322,33 @@
   </div>
 </div>
 
+<!-- HITL Modal -->
+<div class="hitl-modal-overlay" id="hitlModal">
+  <div class="hitl-modal">
+    <div class="hitl-modal-title" id="hitlModalTitle">Raise Back-Office Request</div>
+    <div class="hitl-modal-sub"   id="hitlModalSub"></div>
+    <div class="hitl-modal-platform" id="hitlModalPlatform"></div>
+
+    <div id="hitlNoteGroup">
+      <label for="hitlNote">Additional details / reason</label>
+      <textarea id="hitlNote" rows="3" placeholder="Describe why you're raising this request…"></textarea>
+    </div>
+
+    <div id="hitlAddressGroup" style="display:none">
+      <label for="hitlAddress">Authorised delivery address</label>
+      <input type="text" id="hitlAddress" placeholder="e.g. 42 Maple Street, Manchester, M1 2AB"/>
+    </div>
+
+    <div class="hitl-modal-actions">
+      <button class="hitl-modal-cancel" onclick="closeHITLModal()">Cancel</button>
+      <button class="hitl-modal-submit" onclick="submitHITLModal()">Submit Request →</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API_URL  = 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com/ask';
+const HITL_URL = 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com';
 const PASSWORDS = ['SecureBank@2025', 'Demo123'];
 const IT_EMAIL = 'dinesh.s.panwar@gmail.com';
 
@@ -549,6 +612,14 @@ function appendMessage(role, content, extra, elapsedMs, question) {
   div.innerHTML = avatar + `<div class="msg-body">${body}</div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
+
+  // Inject HITL action buttons after the element is in the DOM
+  if (role === 'bot' && extra && extra.hitl_options && extra.hitl_options.length) {
+    const msgBodyEl = div.querySelector('.msg-body');
+    const docIds    = (extra.sources || []).map(s => s.doc_id).filter(Boolean);
+    renderHITLActions(msgBodyEl, extra.hitl_options, docIds, question || '');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
 }
 
 function appendTyping() {
@@ -610,6 +681,191 @@ function drillInto(query) {
   if (isLoading) return;
   document.getElementById('queryInput').value = query;
   sendMessage();
+}
+
+// ── HITL — modal state ────────────────────────────────────────────────────────
+let _hitlCtx = {};   // { action, docIds, query, badgeEl }
+
+function showHITLModal(action, docIds, query, badgeEl, opt = {}) {
+  _hitlCtx = { action, docIds, query, badgeEl, opt };
+
+  const LABELS = {
+    reopen_case:    'Reopen Case',
+    send_duplicate: 'Send Duplicate Statement Copy',
+    legal_export:   'Export to Legal S3',
+    escalate_to_it: 'Escalate to IT / Content Team',
+  };
+  const PLATFORMS = {
+    temporal: '⚙️ Temporal — durable workflow',
+    orkes:    '🎼 Orkes Conductor — visual workflow',
+  };
+  const DESCS = {
+    reopen_case:    'Raise a back-office request to reopen this closed case. A case manager will review and confirm.',
+    send_duplicate: 'Request a duplicate statement to be sent to an authorised address. Address will be verified before dispatch.',
+    legal_export:   'Package matching documents + an AI-generated summary letter and deliver to the secure Legal S3 bucket.',
+    escalate_to_it: 'Flag this response as inadequate. The IT / Content team will investigate and improve the knowledge base.',
+  };
+
+  document.getElementById('hitlModalTitle').textContent    = LABELS[action]  || action;
+  document.getElementById('hitlModalSub').textContent      = DESCS[action]   || '';
+  document.getElementById('hitlModalPlatform').textContent = PLATFORMS[opt.platform] || '';
+  document.getElementById('hitlNote').value = '';
+  document.getElementById('hitlAddress').value = '';
+
+  // Show/hide address field
+  const needsAddress = action === 'send_duplicate';
+  document.getElementById('hitlNoteGroup').style.display    = 'block';
+  document.getElementById('hitlAddressGroup').style.display = needsAddress ? 'block' : 'none';
+
+  document.getElementById('hitlModal').classList.add('open');
+}
+
+function closeHITLModal() {
+  document.getElementById('hitlModal').classList.remove('open');
+  _hitlCtx = {};
+}
+
+// Close modal on overlay click
+document.getElementById('hitlModal').addEventListener('click', function(e) {
+  if (e.target === this) closeHITLModal();
+});
+
+async function submitHITLModal() {
+  const { action, docIds, query, badgeEl } = _hitlCtx;
+  const userNote        = document.getElementById('hitlNote').value.trim();
+  const deliveryAddress = document.getElementById('hitlAddress').value.trim();
+
+  if (action === 'send_duplicate' && !deliveryAddress) {
+    document.getElementById('hitlAddress').style.borderColor = '#e05050';
+    document.getElementById('hitlAddress').focus();
+    return;
+  }
+
+  closeHITLModal();
+  await submitHITL(action, docIds, query, userNote, deliveryAddress, badgeEl);
+}
+
+// ── HITL — submit request to Lambda ──────────────────────────────────────────
+async function submitHITL(action, docIds, query, userNote, deliveryAddress, badgeEl) {
+  // Show spinner in badge
+  setBadgeState(badgeEl, 'pending', '🔄 Submitting…');
+
+  try {
+    const res = await fetch(`${HITL_URL}/hitl`, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        action,
+        doc_ids:          docIds,
+        original_query:   query,
+        user_note:        userNote,
+        delivery_address: deliveryAddress,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({detail: res.statusText}));
+      setBadgeState(badgeEl, 'rejected', `⚠️ Failed: ${err.detail || res.statusText}`);
+      return;
+    }
+
+    const data = await res.json();
+
+    if (data.type === 'gap') {
+      // Content gap logged — no polling needed
+      setBadgeState(badgeEl, 'logged',
+        `✅ Gap logged: ${data.gap_id} · IT/Content team notified`);
+      return;
+    }
+
+    // Ticket created — start polling
+    const ticketId = data.ticket_id;
+    const platform = data.platform === 'orkes' ? '🎼 Orkes' : '⚙️ Temporal';
+    setBadgeState(badgeEl, 'pending',
+      `⏳ ${data.ticket_id} · ${platform} · pending back-office review`);
+    pollTicketStatus(ticketId, badgeEl);
+
+  } catch (err) {
+    setBadgeState(badgeEl, 'rejected', `⚠️ Network error: ${err.message}`);
+  }
+}
+
+// ── HITL — poll ticket status every 6s ───────────────────────────────────────
+const _pollers = {};   // ticketId → intervalId
+
+function pollTicketStatus(ticketId, badgeEl) {
+  // Stop any existing poller for this ticket
+  if (_pollers[ticketId]) clearInterval(_pollers[ticketId]);
+
+  const MAX_POLLS = 100; // ~10 minutes
+  let polls = 0;
+
+  _pollers[ticketId] = setInterval(async () => {
+    polls++;
+    if (polls > MAX_POLLS) {
+      clearInterval(_pollers[ticketId]);
+      setBadgeState(badgeEl, 'pending', `⏳ ${ticketId} · awaiting decision (refresh to check)`);
+      return;
+    }
+
+    try {
+      const res  = await fetch(`${HITL_URL}/hitl/status/${ticketId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const { status, resolver_name } = data;
+
+      if (status === 'approved') {
+        clearInterval(_pollers[ticketId]);
+        const who = resolver_name ? ` by ${resolver_name}` : '';
+        setBadgeState(badgeEl, 'approved', `✅ ${ticketId} approved${who}`);
+      } else if (status === 'rejected') {
+        clearInterval(_pollers[ticketId]);
+        const who = resolver_name ? ` by ${resolver_name}` : '';
+        setBadgeState(badgeEl, 'rejected', `❌ ${ticketId} rejected${who}`);
+      } else if (status === 'completed') {
+        clearInterval(_pollers[ticketId]);
+        setBadgeState(badgeEl, 'approved', `✅ ${ticketId} completed`);
+      }
+      // pending / in_progress → keep polling
+    } catch (_) { /* network blip — retry */ }
+  }, 6000);
+}
+
+function setBadgeState(badgeEl, state, text) {
+  if (!badgeEl) return;
+  badgeEl.className = `ticket-badge ${state}`;
+  badgeEl.innerHTML = (state === 'pending'
+    ? '<div class="ticket-spinner"></div>'
+    : '') + `<span>${escHtml(text)}</span>`;
+}
+
+// ── HITL — render action buttons after a response ────────────────────────────
+function renderHITLActions(bodyEl, hitlOptions, docIds, query) {
+  if (!hitlOptions || !hitlOptions.length) return;
+
+  const badgeEl = document.createElement('div');
+  badgeEl.style.display = 'none';   // hidden until first action taken
+  bodyEl.appendChild(badgeEl);
+
+  const bar = document.createElement('div');
+  bar.className = 'hitl-actions';
+
+  hitlOptions.forEach((opt, idx) => {
+    const btn = document.createElement('button');
+    const isLast = idx === hitlOptions.length - 1;   // catch-all is always last
+    btn.className = `hitl-btn ${isLast && opt.id === 'escalate_to_it' ? 'hitl-btn-danger' : 'hitl-btn-primary'}`;
+    btn.innerHTML = `${escHtml(opt.icon)} ${escHtml(opt.label)}`;
+    btn.title = opt.desc || '';
+    btn.onclick = () => {
+      // Show badge area
+      badgeEl.style.display = 'flex';
+      // Open modal to capture note / address
+      showHITLModal(opt.id, docIds, query, badgeEl, opt);
+    };
+    bar.appendChild(btn);
+  });
+
+  bodyEl.insertBefore(bar, badgeEl);
 }
 </script>
 </body>
