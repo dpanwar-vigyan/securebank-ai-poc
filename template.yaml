@@ -44,6 +44,17 @@ Parameters:
     NoEcho: true
     Description: Orkes application key secret
 
+  AppianBaseUrl:
+    Type: String
+    Default: ""
+    Description: Appian REST API base URL (e.g. https://yoursite.appiancloud.com/suite/webapi)
+
+  AppianApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Appian API key for creating HITL cases
+
   ClickHousePassword:
     Type: String
     Default: ""
@@ -71,6 +82,9 @@ Globals:
         ORKES_API_URL:       !Ref OrkesApiUrl
         ORKES_KEY_ID:        !Ref OrkesKeyId
         ORKES_KEY_SECRET:    !Ref OrkesKeySecret
+        APPIAN_BASE_URL:     !Ref AppianBaseUrl
+        APPIAN_API_KEY:      !Ref AppianApiKey
+        HITL_SQS_QUEUE_URL:  !Ref HITLQueue
 
 Resources:
 
@@ -102,6 +116,13 @@ Resources:
                 - textract:StartDocumentTextDetection
                 - textract:GetDocumentTextDetection
               Resource: "*"
+        # SQS — publish HITL cases to the queue for Appian
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt HITLQueue.Arn
       Events:
         # API Gateway HTTP API (cheaper than REST API)
         ApiRoot:
@@ -177,6 +198,35 @@ Resources:
 
   # Note: S3 bucket 'askmybank-vectors' was created manually — not managed by SAM
 
+  # ── SQS: HITL Case Queue ────────────────────────────────────────────────────
+  # Dead-letter queue — messages that fail 3 delivery attempts land here
+  HITLDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "askmybank-hitl-dlq-${Stage}"
+      MessageRetentionPeriod: 1209600    # 14 days
+      Tags:
+        - Key: Project
+          Value: askmybank
+
+  # Main HITL queue — Appian polls this for new cases
+  HITLQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "askmybank-hitl-${Stage}"
+      # How long a message is invisible after Appian picks it up (5 min to process)
+      VisibilityTimeout: 300
+      # Retain messages 14 days — survives Appian outages up to 2 weeks
+      MessageRetentionPeriod: 1209600
+      # Appian polls every minute; messages older than 60s become available
+      ReceiveMessageWaitTimeSeconds: 20  # long-poll, reduces empty receives
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt HITLDeadLetterQueue.Arn
+        maxReceiveCount: 3               # 3 failed Appian attempts → DLQ
+      Tags:
+        - Key: Project
+          Value: askmybank
+
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL
@@ -189,3 +239,15 @@ Outputs:
   VectorsBucketName:
     Description: S3 bucket containing vectors
     Value: !Ref VectorsBucket
+
+  HITLQueueUrl:
+    Description: SQS queue URL — configure in Appian Connected System
+    Value: !Ref HITLQueue
+
+  HITLQueueArn:
+    Description: SQS queue ARN
+    Value: !GetAtt HITLQueue.Arn
+
+  HITLDeadLetterQueueUrl:
+    Description: DLQ — messages Appian failed to process 3 times
+    Value: !Ref HITLDeadLetterQueue

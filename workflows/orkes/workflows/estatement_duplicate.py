@@ -34,7 +34,7 @@ WORKFLOW_DEF = {
     "name":        WORKFLOW_NAME,
     "version":     WORKFLOW_VERSION,
     "description": "AskMyBank — eStatement duplicate copy: address verify → HITL approval → S3 retrieve → AI cover note → dispatch",
-    "timeoutSeconds":   86400,   # 24h max — long enough for back-office to respond
+    "timeoutSeconds":   604800,  # 7 days — survives Appian outages + weekend backlogs
     "timeoutPolicy":    "TIME_OUT_WF",
     "inputParameters":  ["ticket_id", "doc_ids", "delivery_address", "original_query", "customer_id"],
     "outputParameters": {

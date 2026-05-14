@@ -17,6 +17,8 @@ import json
 import os
 from typing import Optional
 
+import boto3
+from botocore.exceptions import ClientError
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
@@ -26,6 +28,53 @@ from rag.chain import BankingRAG
 from rag.hitl_client import (
     HITLClient, HITLUnavailableError, HITLNotFoundError
 )
+
+# ── SQS client — HITL case queue for Appian ───────────────────────────────────
+_sqs           = boto3.client("sqs", region_name=os.getenv("AWS_REGION", "us-east-1"))
+HITL_QUEUE_URL = os.getenv("HITL_SQS_QUEUE_URL", "")
+
+def _publish_to_sqs(ticket: dict, req_extras: dict) -> str:
+    """
+    Publish a HITL case to SQS for Appian to pick up.
+    Returns the SQS MessageId, or "" on failure (non-fatal — ticket still created).
+
+    Message contains everything Appian needs to create a case:
+      - ticket details (id, action, docs, query, address)
+      - callback_url so Appian knows where to POST the decision
+      - orkes_ui_url so Appian can link to the live workflow DAG
+    """
+    if not HITL_QUEUE_URL:
+        return ""
+    try:
+        api_base = os.getenv("API_BASE_URL",
+                             "https://r6v15i892m.execute-api.us-east-1.amazonaws.com")
+        message  = {
+            **ticket,
+            **req_extras,                     # customer_id, delivery_address, doc_ids
+            "callback_url": f"{api_base}/hitl/{ticket['ticket_id']}/decide",
+            "source":       "askmybank_hitl",
+        }
+        resp = _sqs.send_message(
+            QueueUrl    = HITL_QUEUE_URL,
+            MessageBody = json.dumps(message),
+            # Route different case types to dedicated Appian process models
+            MessageAttributes={
+                "action": {
+                    "StringValue": ticket.get("action", ""),
+                    "DataType":    "String",
+                },
+                "ticket_id": {
+                    "StringValue": ticket.get("ticket_id", ""),
+                    "DataType":    "String",
+                },
+            },
+        )
+        msg_id = resp.get("MessageId", "")
+        print(f"SQS published ticket {ticket['ticket_id']} → MessageId={msg_id}")
+        return msg_id
+    except ClientError as exc:
+        # Non-fatal — ticket is already in ClickHouse + Orkes running
+        print(f"SQS publish failed ({exc}) — ticket still active in ClickHouse/Orkes")
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="AskMyBank API", version="2.0.0")
@@ -167,6 +216,19 @@ def create_hitl_ticket(req: HITLActionRequest):
                 ticket["orkes_ui_url"]    = (
                     f"https://developer.orkescloud.com/execution/{wf_id}"
                 )
+
+        # ── Publish to SQS — guaranteed delivery buffer for Appian ──────────
+        # Non-blocking: if SQS publish fails, ticket still exists in ClickHouse
+        # and Orkes workflow is already running. Appian can poll /hitl/pending
+        # as a fallback to clear any backlog.
+        req_extras = {
+            "customer_id":      req.customer_id,
+            "delivery_address": req.delivery_address,
+            "doc_ids":          req.doc_ids,
+        }
+        sqs_msg_id = _publish_to_sqs(ticket, req_extras)
+        if sqs_msg_id:
+            ticket["sqs_message_id"] = sqs_msg_id
 
         return {"type": "ticket", **ticket}
     except HITLUnavailableError as exc:
