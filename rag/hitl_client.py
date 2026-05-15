@@ -17,6 +17,7 @@ import json
 import os
 import urllib.request
 import urllib.error
+import urllib.parse
 import uuid
 from datetime import datetime
 
@@ -35,10 +36,17 @@ _orkes_token_cache: dict = {}
 
 # ── Platform assignment per action ─────────────────────────────────────────────
 ACTION_PLATFORM = {
-    "reopen_case":    "temporal",   # durable, long-running approval chain
-    "send_duplicate": "orkes",      # automated + address-verify flow
-    "legal_export":   "orkes",      # visual DAG, impressive in demo
-    "escalate_to_it": "temporal",   # feedback loop, needs durability
+    "reopen_case":    "temporal",   # Signal-driven dispute reopen
+    "send_duplicate": "temporal",   # Signal-driven HITL (was Orkes DO_WHILE poll)
+    "legal_export":   "orkes",      # visual DAG data pipeline — stays Orkes
+    "escalate_to_it": "temporal",   # Signal-driven IT escalation
+}
+
+# Temporal workflow name per action
+TEMPORAL_WORKFLOWS = {
+    "send_duplicate": "askmybank_estatement_duplicate",
+    "reopen_case":    "askmybank_reopen_case",
+    "escalate_to_it": "askmybank_escalate_to_it",
 }
 
 # ── Action display labels ──────────────────────────────────────────────────────
@@ -345,6 +353,127 @@ class HITLClient:
         except Exception as exc:
             print(f"HITLClient: Orkes trigger failed ({exc}) — continuing without workflow")
             return ""
+
+    # ── Temporal SDK helpers (asyncio.run() from sync Lambda context) ─────────
+    @staticmethod
+    def _temporal_client_sync():
+        """
+        Return a connected Temporal client synchronously.
+        Safe to call from FastAPI sync routes — creates a fresh event loop.
+        """
+        import asyncio
+        from workflows.temporal.config import get_client
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(get_client()), loop
+        except Exception:
+            loop.close()
+            raise
+
+    # ── Trigger Temporal workflow ──────────────────────────────────────────────
+    def trigger_temporal_workflow(
+        self,
+        workflow_name:  str,
+        workflow_input: dict,
+        workflow_id:    str = "",
+    ) -> str:
+        """
+        Start a Temporal workflow using the SDK (gRPC to Temporal Cloud).
+        Returns the workflow_id on success, "" on failure (non-fatal).
+
+        workflow_id is set to ticket_id so we can Signal it later by ticket ID
+        without needing to look up the run ID.
+        """
+        if not os.getenv("TEMPORAL_ADDRESS"):
+            print("HITLClient: Temporal not configured — skipping")
+            return ""
+
+        import asyncio
+
+        wf_id = workflow_id or f"{workflow_name}-{workflow_input.get('ticket_id','')}"
+
+        async def _start():
+            from workflows.temporal.config import get_client, TASK_QUEUE
+            from workflows.temporal.workflows.estatement_workflow import (
+                EstatementDuplicateWorkflow, EstatementInput,
+            )
+            from datetime import timedelta
+
+            client = await get_client()
+
+            # Map workflow name → workflow class + input type
+            wf_class = EstatementDuplicateWorkflow   # extend when more workflows added
+            inp = EstatementInput(
+                ticket_id        = workflow_input.get("ticket_id", ""),
+                doc_ids          = workflow_input.get("doc_ids", []),
+                delivery_address = workflow_input.get("delivery_address", ""),
+                original_query   = workflow_input.get("original_query", ""),
+                customer_id      = workflow_input.get("customer_id", ""),
+            )
+
+            handle = await client.start_workflow(
+                wf_class.run,
+                inp,
+                id              = wf_id,
+                task_queue      = TASK_QUEUE,
+                execution_timeout = timedelta(days=7),
+            )
+            return handle.id
+
+        try:
+            loop = asyncio.new_event_loop()
+            result = loop.run_until_complete(_start())
+            loop.close()
+            print(f"HITLClient: Temporal workflow started — {workflow_name} / {result}")
+            return result
+        except Exception as exc:
+            print(f"HITLClient: Temporal start failed ({exc})")
+            return ""
+
+    def send_temporal_signal(
+        self,
+        workflow_id:    str,
+        signal_name:    str,
+        signal_payload: dict,
+    ) -> bool:
+        """
+        Send a Signal to a running Temporal workflow.
+
+        This is the core difference vs Orkes:
+          Orkes: Lambda updates ClickHouse → workflow polls every 20s to detect it
+          Temporal: Lambda sends Signal → workflow wakes INSTANTLY (milliseconds)
+
+        Called by POST /hitl/{ticket_id}/decide after ClickHouse is updated.
+        """
+        if not os.getenv("TEMPORAL_ADDRESS"):
+            print("HITLClient: Temporal not configured — cannot send signal")
+            return False
+
+        import asyncio
+        from workflows.temporal.workflows.estatement_workflow import DecisionSignal
+
+        async def _signal():
+            from workflows.temporal.config import get_client
+            client = await get_client()
+            handle = client.get_workflow_handle(workflow_id)
+            await handle.signal(
+                "decision_received",
+                DecisionSignal(
+                    decision      = signal_payload.get("decision", ""),
+                    resolver_name = signal_payload.get("resolver_name", ""),
+                    resolver_note = signal_payload.get("resolver_note", ""),
+                ),
+            )
+
+        try:
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(_signal())
+            loop.close()
+            print(f"HITLClient: Signal '{signal_name}' → {workflow_id} ✅")
+            return True
+        except Exception as exc:
+            print(f"HITLClient: Signal failed ({exc})")
+            return False
 
     def _store_workflow_run_id(self, ticket_id: str, workflow_run_id: str):
         """Write the Orkes workflow instance ID back to the ClickHouse ticket."""
