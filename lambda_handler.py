@@ -26,7 +26,8 @@ from pydantic import BaseModel
 
 from rag.chain import BankingRAG
 from rag.hitl_client import (
-    HITLClient, HITLUnavailableError, HITLNotFoundError
+    HITLClient, HITLUnavailableError, HITLNotFoundError,
+    TEMPORAL_WORKFLOWS,
 )
 
 # ── SQS client — HITL case queue for Appian ───────────────────────────────────
@@ -128,10 +129,10 @@ class PipelineIngestRequest(BaseModel):
     customer_id:   str = ""
     source_system: str = "manual"    # "manual" | "s3_event"
 
-# Orkes workflow names
+# Orkes workflow names — only legal_export (data pipeline) stays on Orkes
+# send_duplicate moved to Temporal (Signal-driven, no polling)
 _ORKES_WORKFLOWS = {
-    "send_duplicate": "askmybank_estatement_duplicate",
-    "legal_export":   "askmybank_document_pipeline",   # reuse pipeline for bulk
+    "legal_export": "askmybank_document_pipeline",
 }
 
 
@@ -199,16 +200,33 @@ def create_hitl_ticket(req: HITLActionRequest):
             delivery_address = req.delivery_address,
         )
 
-        # ── Trigger Orkes workflow for Orkes-platform actions ────────────────
+        wf_input = {
+            "ticket_id":       ticket["ticket_id"],
+            "doc_ids":         req.doc_ids,
+            "delivery_address":req.delivery_address,
+            "original_query":  req.original_query,
+            "customer_id":     req.customer_id,
+        }
+
+        # ── Temporal: Signal-driven HITL (send_duplicate, reopen, escalate) ─
+        temporal_wf = TEMPORAL_WORKFLOWS.get(req.action)
+        if temporal_wf:
+            wf_id = hitl.trigger_temporal_workflow(
+                workflow_name  = temporal_wf,
+                workflow_input = wf_input,
+                workflow_id    = ticket["ticket_id"],   # use ticket_id as workflow_id
+            )                                           # so we can signal it by ticket_id
+            if wf_id:
+                hitl._store_workflow_run_id(ticket["ticket_id"], wf_id)
+                ticket["workflow_run_id"] = wf_id
+                ticket["temporal_ui_url"] = (
+                    f"https://cloud.temporal.io/namespaces/"
+                    f"{os.getenv('TEMPORAL_NAMESPACE','')}/workflows/{wf_id}"
+                )
+
+        # ── Orkes: visual DAG pipeline (legal_export only) ────────────────────
         orkes_wf = _ORKES_WORKFLOWS.get(req.action)
         if orkes_wf:
-            wf_input = {
-                "ticket_id":       ticket["ticket_id"],
-                "doc_ids":         req.doc_ids,
-                "delivery_address":req.delivery_address,
-                "original_query":  req.original_query,
-                "customer_id":     req.customer_id,
-            }
             wf_id = hitl.trigger_orkes_workflow(orkes_wf, wf_input, ticket["ticket_id"])
             if wf_id:
                 hitl._store_workflow_run_id(ticket["ticket_id"], wf_id)
@@ -270,16 +288,41 @@ def decide_ticket(
     req: HITLDecisionRequest,
     x_backoffice_key: Optional[str] = Header(default=None),
 ):
-    """Back-office manager approves or rejects a ticket."""
+    """
+    Back-office manager approves or rejects a ticket.
+
+    Two things happen:
+      1. ClickHouse updated (existing behaviour — Orkes DO_WHILE picks this up
+         for legal_export pipeline; chat UI polling also reads this)
+      2. Temporal Signal sent INSTANTLY — no polling needed for HITL workflows
+         (send_duplicate, reopen_case, escalate_to_it)
+
+    Appian calls this endpoint directly after the banker's decision.
+    """
     if BACKOFFICE_KEY and x_backoffice_key != BACKOFFICE_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing X-Backoffice-Key header")
     try:
+        # Step 1: Update ClickHouse (source of truth for status polling + analytics)
         result = hitl.update_decision(
             ticket_id     = ticket_id,
             decision      = req.decision,
             resolver_name = req.resolver_name,
             resolver_note = req.resolver_note,
         )
+
+        # Step 2: Send Temporal Signal — workflow wakes INSTANTLY
+        # workflow_id == ticket_id (set at workflow start)
+        signal_sent = hitl.send_temporal_signal(
+            workflow_id    = ticket_id,
+            signal_name    = "decision_received",
+            signal_payload = {
+                "decision":      req.decision,
+                "resolver_name": req.resolver_name,
+                "resolver_note": req.resolver_note,
+            },
+        )
+        result["temporal_signal_sent"] = signal_sent
+
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
