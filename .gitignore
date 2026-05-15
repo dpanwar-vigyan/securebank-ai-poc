@@ -22,3 +22,10 @@ logs.txt
 # ── chroma_db is intentionally INCLUDED in git ───────────────────────────────
 # (26 MB — needed so Streamlit Cloud has pre-built vector index on deploy)
 # Do NOT add chroma_db/ here.
+
+# Build artifacts
+node_modules/
+.aws-sam/
+__pycache__/
+*.pyc
+.venv/
