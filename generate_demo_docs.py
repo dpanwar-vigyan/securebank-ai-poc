@@ -74,9 +74,9 @@ def _header(story, styles, doc_type, doc_ref):
 
 def make_demo_complaint_highvalue():
     """
-    Demo doc 1: High-value product mis-selling complaint, £12,000 compensation
+    Demo doc 1: High-value product mis-selling complaint, $12,000 compensation
     Narration: 'Customer was sold a structured product that didn't match their risk profile'
-    Query to use after ingestion: 'Show me product mis-selling complaints with compensation over £10,000'
+    Query to use after ingestion: 'Show me product mis-selling complaints with compensation over $10,000'
     """
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm,
@@ -90,16 +90,16 @@ def make_demo_complaint_highvalue():
         ["Case Reference",  "CMP-DEMO-001",        "Status",        "Closed — Resolved Customer Favour"],
         ["Complaint Type",  "Product Mis-selling",  "Priority",      "Critical"],
         ["Date Filed",      "03 Jan 2026",           "Date Closed",   "28 Jan 2026"],
-        ["Assigned Officer","Priya Sharma",          "Branch",        "London City"],
-        ["Compensation",    "£12,000.00",            "Regulatory",    "FCA Case Ref FC-2026-00143"],
+        ["Assigned Officer","Priya Sharma",          "Branch",        "Sydney CBD"],
+        ["Compensation",    "$12,000.00",            "Regulatory",    "ASIC Case Ref ASIC-2026-00143"],
     ]))
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Customer Details", styles["SectionHdr"]))
     story.append(_table([
         ["Customer Name",   "DEMO — Robert Ashworth",  "Customer ID",  "CUST-DEMO-001"],
-        ["Account Number",  "40271893",                 "Sort Code",    "20-14-77"],
-        ["Account Type",    "Premier",                  "Branch",       "London City BR001"],
+        ["Account Number",  "40271893",                 "BSB Number",    "062-000"],
+        ["Account Type",    "Premier",                  "Branch",       "Sydney CBD BR001"],
     ]))
     story.append(Spacer(1, 10))
 
@@ -109,17 +109,17 @@ def make_demo_complaint_highvalue():
         "regarding the mis-selling of a 5-year structured capital-at-risk product in March 2024. "
         "The customer, classified as a cautious investor with a risk score of 2/10, was placed "
         "into a product requiring a minimum risk score of 6/10. The customer sustained a loss of "
-        "£8,400 before the error was identified during an annual review. "
+        "$8,400 before the error was identified during an annual review. "
         "This complaint was classified as CRITICAL priority and escalated immediately to the "
-        "Compliance & Regulatory team. The FCA was notified under DISP 1.5.",
+        "Compliance & Regulatory team. ASIC was notified under RG 165.",
         styles["Body"]))
     story.append(Spacer(1, 6))
 
     story.append(Paragraph("Resolution", styles["SectionHdr"]))
     story.append(Paragraph(
-        "SecureBank agreed to compensate the customer in full for the capital loss (£8,400) plus "
-        "an additional goodwill payment of £3,600 to account for lost interest and distress, "
-        "totalling £12,000.00. The responsible relationship manager has been subject to a formal "
+        "SecureBank agreed to compensate the customer in full for the capital loss ($8,400) plus "
+        "an additional goodwill payment of $3,600 to account for lost interest and distress, "
+        "totalling $12,000.00. The responsible relationship manager has been subject to a formal "
         "performance review. Process improvements to the risk profiling system were implemented "
         "on 15 February 2026.",
         styles["Body"]))
@@ -129,9 +129,9 @@ def make_demo_complaint_highvalue():
 
 def make_demo_dispute_fraud():
     """
-    Demo doc 2: Card-not-present fraud, £3,200 disputed across 4 transactions
+    Demo doc 2: Card-not-present fraud, $3,200 disputed across 4 transactions
     Narration: 'Customer's card details were cloned and used for overseas purchases'
-    Query: 'Show me card fraud disputes from 2026 with amounts over £3,000'
+    Query: 'Show me card fraud disputes from 2026 with amounts over $3,000'
     """
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm,
@@ -143,16 +143,16 @@ def make_demo_dispute_fraud():
     story.append(Paragraph("DISPUTE — CARD NOT PRESENT FRAUD", styles["SectionHdr"]))
     story.append(_table([
         ["Case Reference",  "DSP-DEMO-001",            "Status",       "Closed-Won (Customer)"],
-        ["Dispute Type",    "Card Not Present Fraud",   "Total Amount", "£3,240.00"],
+        ["Dispute Type",    "Card Not Present Fraud",   "Total Amount", "$3,240.00"],
         ["Date Filed",      "07 Feb 2026",              "Date Closed",  "21 Feb 2026"],
-        ["Assigned Officer","Mohammed Al-Rashid",        "Branch",       "Manchester Central"],
+        ["Assigned Officer","Mohammed Al-Rashid",        "Branch",       "Melbourne Central"],
     ]))
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Customer Details", styles["SectionHdr"]))
     story.append(_table([
         ["Customer Name",   "DEMO — Sarah Okonkwo",  "Customer ID", "CUST-DEMO-002"],
-        ["Account Number",  "61094422",               "Sort Code",   "40-22-18"],
+        ["Account Number",  "61094422",               "BSB Number",   "033-000"],
         ["Card Type",       "Visa Debit",             "Card Last 4", "7823"],
     ]))
     story.append(Spacer(1, 10))
@@ -160,10 +160,10 @@ def make_demo_dispute_fraud():
     story.append(Paragraph("Disputed Transactions", styles["SectionHdr"]))
     story.append(Table(
         [["Date", "Merchant", "Country", "Amount"],
-         ["01 Feb 2026", "ONLINE-STORE-XX",   "Romania",     "£890.00"],
-         ["01 Feb 2026", "DIGITAL-GOODS-YY",  "Romania",     "£1,200.00"],
-         ["02 Feb 2026", "MARKETPLACE-ZZ",    "Romania",     "£750.00"],
-         ["03 Feb 2026", "TECH-STORE-AA",     "Netherlands", "£400.00"]],
+         ["01 Feb 2026", "ONLINE-STORE-XX",   "Singapore",     "$890.00"],
+         ["01 Feb 2026", "DIGITAL-GOODS-YY",  "Singapore",     "$1,200.00"],
+         ["02 Feb 2026", "MARKETPLACE-ZZ",    "Singapore",     "$750.00"],
+         ["03 Feb 2026", "TECH-STORE-AA",     "Hong Kong", "$400.00"]],
         colWidths=[3*cm, 6*cm, 4*cm, 3*cm],
         style=TableStyle([
             ("FONTNAME",   (0,0),(-1,0), "Helvetica-Bold"),
@@ -179,10 +179,10 @@ def make_demo_dispute_fraud():
     story.append(Paragraph("Findings & Resolution", styles["SectionHdr"]))
     story.append(Paragraph(
         "Investigation confirmed that all four transactions were fraudulent. The customer was in "
-        "Manchester at the time all transactions were processed. Card details were likely obtained "
-        "via a phishing attack on a third-party e-commerce site. Full refund of £3,240.00 was "
+        "Melbourne at the time all transactions were processed. Card details were likely obtained "
+        "via a phishing attack on a third-party e-commerce site. Full refund of $3,240.00 was "
         "credited to account 61094422 on 21 February 2026. A replacement card (last 4: 3341) "
-        "was issued. Fraud referral submitted to the National Fraud Intelligence Bureau (NFIB).",
+        "was issued. Fraud referral submitted to the Australian Federal Police (AFP).",
         styles["Body"]))
     doc.build(story)
     return buf.getvalue()
@@ -204,26 +204,26 @@ def make_demo_estatement_premier():
     story.append(Paragraph("ACCOUNT STATEMENT — APRIL 2026", styles["SectionHdr"]))
     story.append(_table([
         ["Customer Name",   "DEMO — Amelia Singh",  "Customer ID",   "CUST-DEMO-003"],
-        ["Account Number",  "78823341",              "Sort Code",     "60-11-44"],
-        ["Account Type",    "Premier Current",       "Branch",        "Edinburgh BR004"],
+        ["Account Number",  "78823341",              "BSB Number",     "082-000"],
+        ["Account Type",    "Premier Current",       "Branch",        "Brisbane BR004"],
         ["Statement From",  "01 Apr 2026",           "Statement To",  "30 Apr 2026"],
-        ["Opening Balance", "£24,150.00",            "Closing Balance","£19,732.50"],
+        ["Opening Balance", "$24,150.00",            "Closing Balance","$19,732.50"],
     ]))
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Transactions", styles["SectionHdr"]))
     story.append(Table(
         [["Date",         "Description",               "Debit",      "Credit",    "Balance"],
-         ["01 Apr 2026",  "Opening Balance",            "",           "",          "£24,150.00"],
-         ["03 Apr 2026",  "Mortgage Direct Debit",      "£2,100.00",  "",          "£22,050.00"],
-         ["05 Apr 2026",  "BACS Salary — Accenture",    "",           "£6,800.00", "£28,850.00"],
-         ["08 Apr 2026",  "Standing Order — ISA",       "£500.00",    "",          "£28,350.00"],
-         ["12 Apr 2026",  "Waitrose Manchester",        "£186.50",    "",          "£28,163.50"],
-         ["15 Apr 2026",  "HMRC Self Assessment",       "£8,200.00",  "",          "£19,963.50"],
-         ["20 Apr 2026",  "Premier Cashback Credit",    "",           "£89.00",    "£20,052.50"],
-         ["25 Apr 2026",  "BT Broadband DD",            "£65.00",     "",          "£19,987.50"],
-         ["28 Apr 2026",  "Amazon Prime",               "£255.00",    "",          "£19,732.50"],
-         ["30 Apr 2026",  "Closing Balance",            "",           "",          "£19,732.50"]],
+         ["01 Apr 2026",  "Opening Balance",            "",           "",          "$24,150.00"],
+         ["03 Apr 2026",  "Home Loan Repayment",      "$2,100.00",  "",          "$22,050.00"],
+         ["05 Apr 2026",  "Pay Salary — Accenture",    "",           "$6,800.00", "$28,850.00"],
+         ["08 Apr 2026",  "Transfer — Super Fund",       "$500.00",    "",          "$28,350.00"],
+         ["12 Apr 2026",  "Woolworths Melbourne",        "$186.50",    "",          "$28,163.50"],
+         ["15 Apr 2026",  "ATO Tax Payment",       "$8,200.00",  "",          "$19,963.50"],
+         ["20 Apr 2026",  "Premier Cashback Credit",    "",           "$89.00",    "$20,052.50"],
+         ["25 Apr 2026",  "Telstra DD",            "$65.00",     "",          "$19,987.50"],
+         ["28 Apr 2026",  "Kogan Purchase",               "$255.00",    "",          "$19,732.50"],
+         ["30 Apr 2026",  "Closing Balance",            "",           "",          "$19,732.50"]],
         colWidths=[3*cm, 6.5*cm, 2.5*cm, 2.5*cm, 3*cm],
         style=TableStyle([
             ("FONTNAME",   (0,0),(-1,0), "Helvetica-Bold"),
@@ -242,7 +242,7 @@ def make_demo_estatement_premier():
 
 def make_demo_maintenance_overdraft():
     """
-    Demo doc 4: Overdraft limit increase for business account — £25k → £50k
+    Demo doc 4: Overdraft limit increase for business account — $25k → $50k
     Narration: 'Business customer requesting increased overdraft for seasonal cash flow'
     Query: 'Which customers requested overdraft limit changes in 2026?'
     """
@@ -258,27 +258,27 @@ def make_demo_maintenance_overdraft():
         ["Request Reference", "MNT-DEMO-001",          "Status",    "Approved"],
         ["Request Type",      "Overdraft Limit Change", "Priority",  "Standard"],
         ["Date Submitted",    "10 Mar 2026",            "Approved",  "14 Mar 2026"],
-        ["Authorised By",     "Thomas Müller — RM008",  "Branch",    "Birmingham BR003"],
+        ["Authorised By",     "Thomas Müller — RM008",  "Branch",    "Perth BR003"],
     ]))
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Customer & Account Details", styles["SectionHdr"]))
     story.append(_table([
         ["Customer Name",   "DEMO — Blackwood & Foster Ltd",  "Customer ID",  "CUST-DEMO-004"],
-        ["Account Number",  "92881150",                        "Sort Code",    "30-99-02"],
-        ["Account Type",    "Business Current",                "Branch",       "Birmingham BR003"],
-        ["Current Limit",   "£25,000.00",                     "Requested",    "£50,000.00"],
+        ["Account Number",  "92881150",                        "BSB Number",    "066-000"],
+        ["Account Type",    "Business Current",                "Branch",       "Perth BR003"],
+        ["Current Limit",   "$25,000.00",                     "Requested",    "$50,000.00"],
     ]))
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Business Justification", styles["SectionHdr"]))
     story.append(Paragraph(
         "Blackwood & Foster Ltd (CUST-DEMO-004) is a manufacturing company experiencing "
-        "seasonal cash-flow variance of approximately £30,000 during Q1 and Q3. "
-        "The current £25,000 facility has been fully utilised for 4 of the past 12 months. "
-        "The company's turnover increased 34% year-on-year to £2.1M. "
+        "seasonal cash-flow variance of approximately $30,000 during Q1 and Q3. "
+        "The current $25,000 facility has been fully utilised for 4 of the past 12 months. "
+        "The company's turnover increased 34% year-on-year to $2.1M. "
         "Credit Risk assessment score: 72/100 (Low Risk). Application approved subject to "
-        "annual review. New limit of £50,000 effective 15 March 2026.",
+        "annual review. New limit of $50,000 effective 15 March 2026.",
         styles["Body"]))
     doc.build(story)
     return buf.getvalue()
@@ -286,7 +286,7 @@ def make_demo_maintenance_overdraft():
 
 def make_demo_complaint_ombudsman():
     """
-    Demo doc 5: Complaint escalated to FOS — the 'escalation path' demo doc
+    Demo doc 5: Complaint escalated to AFCA — the 'escalation path' demo doc
     Narration: 'This one shows what happens when a complaint goes all the way to the Ombudsman'
     Query: 'Which complaints have been referred to the Ombudsman in 2026?'
     """
@@ -301,15 +301,15 @@ def make_demo_complaint_ombudsman():
     story.append(_table([
         ["Case Reference",  "CMP-DEMO-002",          "Status",    "Referred to Ombudsman"],
         ["Complaint Type",  "Mortgage Related",       "Priority",  "High"],
-        ["Date Filed",      "15 Nov 2025",            "FOS Ref",   "FOS-2026-MB-008821"],
-        ["Assigned Officer","James Hargreaves",        "Branch",    "Leeds BR005"],
+        ["Date Filed",      "15 Nov 2025",            "AFCA Ref",   "AFCA-2026-MB-008821"],
+        ["Assigned Officer","James Hargreaves",        "Branch",    "Adelaide BR005"],
     ]))
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Customer Details", styles["SectionHdr"]))
     story.append(_table([
         ["Customer Name",   "DEMO — Patrick Devereux",  "Customer ID", "CUST-DEMO-005"],
-        ["Account Number",  "33410087",                  "Sort Code",   "09-01-56"],
+        ["Account Number",  "33410087",                  "BSB Number",   "012-000"],
         ["Product",         "Residential Mortgage",      "Mortgage Ref","MTG-2022-007731"],
     ]))
     story.append(Spacer(1, 10))
@@ -317,20 +317,20 @@ def make_demo_complaint_ombudsman():
     story.append(Paragraph("Complaint Summary", styles["SectionHdr"]))
     story.append(Paragraph(
         "Customer Patrick Devereux (CUST-DEMO-005) complained that SecureBank incorrectly applied "
-        "an Early Repayment Charge (ERC) of £4,200 when the customer ported their mortgage to a "
+        "an Early Repayment Charge (ERC) of $4,200 when the customer ported their mortgage to a "
         "new property in October 2025. The customer argues the porting was within the terms of "
         "the original mortgage offer. SecureBank's initial assessment upheld the charge. "
         "The customer rejected SecureBank's Final Response Letter dated 20 December 2025 "
-        "and referred the case to the Financial Ombudsman Service on 15 January 2026.",
+        "and referred the case to the Australian Financial Complaints Authority on 15 January 2026.",
         styles["Body"]))
     story.append(Spacer(1, 6))
 
     story.append(Paragraph("Current Status", styles["SectionHdr"]))
     story.append(Paragraph(
-        "FOS reference FOS-2026-MB-008821 assigned. SecureBank has 8 weeks from 15 January 2026 "
-        "to provide its full case file to FOS. Mortgage Operations team compiling documentation. "
-        "Estimated FOS decision: June 2026. ERC charge remains in dispute — not refunded pending "
-        "FOS adjudication.",
+        "AFCA reference AFCA-2026-MB-008821 assigned. SecureBank has 8 weeks from 15 January 2026 "
+        "to provide its full case file to AFCA. Mortgage Operations team compiling documentation. "
+        "Estimated AFCA decision: June 2026. ERC charge remains in dispute — not refunded pending "
+        "AFCA adjudication.",
         styles["Body"]))
     doc.build(story)
     return buf.getvalue()
@@ -363,7 +363,7 @@ def make_trial_doc(n):
         f"Trial document {n} ({cust_id}). Customer reported intermittent login failures "
         f"to SecureBank Online Banking between 28 April and 30 April 2026. "
         f"Issue was traced to a scheduled maintenance window that overran by 2 hours. "
-        f"Customer was issued a goodwill credit of £25.00. Case closed.",
+        f"Customer was issued a goodwill credit of $25.00. Case closed.",
         styles["Body"]))
     doc.build(story)
     return buf.getvalue()
@@ -375,19 +375,19 @@ def make_trial_doc(n):
 
 REAL_DEMO_DOCS = [
     ("raw-docs/demo/CMP-DEMO-001.pdf", make_demo_complaint_highvalue,  "Complaint",          "CUST-DEMO-001",
-     "Product mis-selling £12k compensation",
-     "'Show me product mis-selling complaints with compensation over £10,000'"),
+     "Product mis-selling $12k compensation",
+     "'Show me product mis-selling complaints with compensation over $10,000'"),
     ("raw-docs/demo/DSP-DEMO-001.pdf", make_demo_dispute_fraud,        "Dispute",            "CUST-DEMO-002",
-     "Card fraud £3,240 across 4 Romanian transactions",
-     "'Show me card fraud disputes from 2026 with amounts over £3,000'"),
+     "Card fraud $3,240 across 4 Singaporen transactions",
+     "'Show me card fraud disputes from 2026 with amounts over $3,000'"),
     ("raw-docs/demo/STMT-DEMO-001.pdf",make_demo_estatement_premier,   "eStatement",         "CUST-DEMO-003",
      "Premier account statement April 2026",
      "'What is the closing balance for customer CUST-DEMO-003 in April 2026?'"),
     ("raw-docs/demo/MNT-DEMO-001.pdf", make_demo_maintenance_overdraft,"AccountMaintenance", "CUST-DEMO-004",
-     "Overdraft limit £25k → £50k for Blackwood & Foster Ltd",
+     "Overdraft limit $25k → $50k for Blackwood & Foster Ltd",
      "'Which customers requested overdraft limit changes in 2026?'"),
     ("raw-docs/demo/CMP-DEMO-002.pdf", make_demo_complaint_ombudsman,  "Complaint",          "CUST-DEMO-005",
-     "Mortgage ERC complaint referred to FOS",
+     "Mortgage ERC complaint referred to AFCA",
      "'Which complaints have been referred to the Ombudsman in 2026?'"),
 ]
 
