@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HITL Design Patterns · SecureBank AI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0b1120;
+      color: #e2e8f0;
+      line-height: 1.6;
+      padding: 40px 32px;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(11,17,32,0.96);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 20px;
+      margin: -40px -32px 40px -32px;
+    }
+    .nav-brand { font-weight: 700; font-size: 1rem; color: #fff; margin-right: auto; text-decoration: none; }
+    .nav-brand span { color: #60a5fa; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 0.82rem; padding: 4px 10px; border-radius: 5px; transition: all 0.2s; }
+    nav a:hover { color: #fff; background: rgba(255,255,255,0.07); }
+    nav a.active { color: #60a5fa; background: rgba(96,165,250,0.1); }
+    .topnav-author {
+      display: flex; align-items: center; gap: 8px;
+      color: #94a3b8; text-decoration: none; font-size: 0.82rem;
+      padding: 4px 10px; border-radius: 5px; transition: all 0.2s;
+      margin-left: 8px;
+    }
+    .topnav-author:hover { color: #fff; background: rgba(255,255,255,0.07); }
+    .avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #1d4ed8); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #fff; }
+    .demo-btn { background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #fff !important; padding: 5px 14px !important; border-radius: 6px; font-weight: 600; }
+
+    /* ── Page header ── */
+    .page-header { margin-bottom: 48px; }
+    .section-label { font-size: 0.7rem; letter-spacing: 0.12em; font-weight: 700; color: #60a5fa; text-transform: uppercase; margin-bottom: 10px; }
+    .section-label::after { content: ''; display: inline-block; width: 60px; height: 1px; background: #60a5fa; opacity: 0.4; vertical-align: middle; margin-left: 10px; }
+    h1 { font-size: 2.2rem; font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 14px; }
+    h1 span { background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { font-size: 1.05rem; color: #94a3b8; max-width: 780px; line-height: 1.7; }
+
+    /* ── Section title ── */
+    .section-title { font-size: 1.35rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .section-sub { font-size: 0.9rem; color: #64748b; margin-bottom: 28px; }
+
+    /* ── Key insight banner ── */
+    .insight-banner {
+      background: linear-gradient(135deg, rgba(96,165,250,0.1), rgba(167,139,250,0.08));
+      border: 1px solid rgba(96,165,250,0.25);
+      border-radius: 14px;
+      padding: 22px 28px;
+      margin-bottom: 48px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+    .insight-item { display: flex; flex-direction: column; gap: 4px; }
+    .insight-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #60a5fa; }
+    .insight-value { font-size: 0.95rem; color: #e2e8f0; font-weight: 500; }
+
+    /* ── Flow cards grid ── */
+    .flows-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+      gap: 28px;
+      margin-bottom: 56px;
+    }
+
+    .flow-card {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .flow-card:hover { border-color: rgba(96,165,250,0.35); transform: translateY(-2px); }
+
+    .flow-header {
+      padding: 20px 24px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .flow-icon {
+      width: 44px; height: 44px; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; flex-shrink: 0;
+    }
+    .flow-icon.blue   { background: rgba(59,130,246,0.18); }
+    .flow-icon.purple { background: rgba(139,92,246,0.18); }
+    .flow-icon.amber  { background: rgba(245,158,11,0.18); }
+    .flow-icon.green  { background: rgba(16,185,129,0.18); }
+
+    .flow-meta { flex: 1; }
+    .flow-title { font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 3px; }
+    .flow-subtitle { font-size: 0.8rem; color: #64748b; }
+
+    .flow-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .badge {
+      font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em;
+      padding: 3px 9px; border-radius: 20px;
+    }
+    .badge.temporal { background: rgba(96,165,250,0.15); color: #60a5fa; border: 1px solid rgba(96,165,250,0.25); }
+    .badge.orkes    { background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.25); }
+    .badge.lambda   { background: rgba(245,158,11,0.15);  color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+    .badge.appian   { background: rgba(20,184,166,0.15);  color: #14b8a6; border: 1px solid rgba(20,184,166,0.25); }
+    .badge.sqs      { background: rgba(249,115,22,0.15);  color: #fb923c; border: 1px solid rgba(249,115,22,0.25); }
+    .badge.status-built   { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+    .badge.status-partial { background: rgba(245,158,11,0.15);  color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+    .badge.status-config  { background: rgba(99,102,241,0.15);  color: #818cf8; border: 1px solid rgba(99,102,241,0.2); }
+
+    .flow-body { padding: 20px 24px; }
+
+    /* ── Flow diagram ── */
+    .flow-diagram {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-bottom: 18px;
+    }
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      position: relative;
+    }
+    .flow-step-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 32px;
+      flex-shrink: 0;
+    }
+    .flow-node {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700;
+      flex-shrink: 0; z-index: 1;
+    }
+    .flow-node.n-chat     { background: #1e3a5f; color: #60a5fa; border: 2px solid #60a5fa; }
+    .flow-node.n-lambda   { background: #3d2808; color: #f59e0b; border: 2px solid #f59e0b; }
+    .flow-node.n-temporal { background: #1e1b4b; color: #818cf8; border: 2px solid #818cf8; }
+    .flow-node.n-orkes    { background: #2e1a5f; color: #a78bfa; border: 2px solid #a78bfa; }
+    .flow-node.n-sqs      { background: #3d1a08; color: #fb923c; border: 2px solid #fb923c; }
+    .flow-node.n-appian   { background: #0d3330; color: #14b8a6; border: 2px solid #14b8a6; }
+    .flow-node.n-signal   { background: #1a3320; color: #34d399; border: 2px solid #34d399; }
+    .flow-node.n-done     { background: #1a3320; color: #34d399; border: 2px solid #34d399; }
+
+    .flow-connector {
+      width: 2px;
+      min-height: 22px;
+      flex: 1;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+      margin: 2px 0;
+    }
+    .flow-connector.signal { background: linear-gradient(to bottom, #34d399, rgba(52,211,153,0.2)); }
+
+    .flow-content { padding: 4px 0 16px; flex: 1; }
+    .flow-content-label { font-size: 0.82rem; font-weight: 600; color: #e2e8f0; line-height: 1.4; }
+    .flow-content-desc { font-size: 0.75rem; color: #64748b; margin-top: 2px; line-height: 1.4; }
+    .flow-content-note {
+      display: inline-block;
+      font-size: 0.7rem; color: #fbbf24;
+      background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 4px; padding: 1px 7px; margin-top: 4px;
+    }
+    .flow-content-note.green { color: #34d399; background: rgba(52,211,153,0.08); border-color: rgba(52,211,153,0.2); }
+    .flow-content-note.blue  { color: #60a5fa; background: rgba(96,165,250,0.08); border-color: rgba(96,165,250,0.2); }
+
+    /* ── Key facts row ── */
+    .flow-facts {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .fact { display: flex; flex-direction: column; gap: 1px; }
+    .fact-label { font-size: 0.67rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; }
+    .fact-value { font-size: 0.8rem; color: #94a3b8; font-weight: 500; }
+
+    /* ── Platform comparison table ── */
+    .compare-section { margin-bottom: 56px; }
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .compare-table th {
+      text-align: left;
+      padding: 10px 16px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #475569;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .compare-table td {
+      padding: 13px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      color: #94a3b8;
+      vertical-align: top;
+    }
+    .compare-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .compare-table td:first-child { color: #e2e8f0; font-weight: 600; }
+    .tag { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-right: 4px; }
+    .tag.t  { background: rgba(96,165,250,0.15); color: #60a5fa; }
+    .tag.o  { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .tag.ch { background: rgba(249,115,22,0.15);  color: #fb923c; }
+    .tag.ap { background: rgba(20,184,166,0.15);  color: #14b8a6; }
+
+    /* ── Data flow section ── */
+    .dataflow-section { margin-bottom: 56px; }
+    .dataflow-card {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 28px 32px;
+    }
+    .dataflow-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-top: 24px;
+    }
+    @media (max-width: 768px) { .dataflow-grid { grid-template-columns: 1fr; } }
+    .dataflow-col h4 { font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .dataflow-col h4 span { font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+    .dataflow-col h4 span.blue { background: rgba(96,165,250,0.15); color: #60a5fa; }
+    .dataflow-col h4 span.purple { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .dataflow-item { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+    .dataflow-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+    .dataflow-dot.blue   { background: #60a5fa; }
+    .dataflow-dot.purple { background: #a78bfa; }
+    .dataflow-dot.amber  { background: #f59e0b; }
+    .dataflow-dot.green  { background: #34d399; }
+    .dataflow-text { font-size: 0.83rem; color: #94a3b8; }
+    .dataflow-text strong { color: #e2e8f0; }
+
+    /* ── What's built / config status ── */
+    .status-section { margin-bottom: 56px; }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .status-card {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px;
+      padding: 22px;
+    }
+    .status-card h4 { font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .status-list { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+    .status-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.82rem; color: #94a3b8; }
+    .status-icon { flex-shrink: 0; margin-top: 1px; font-size: 0.9rem; }
+    .status-text strong { color: #e2e8f0; display: block; font-size: 0.83rem; }
+
+    /* ── Footer ── */
+    footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 0.78rem; color: #334155; line-height: 2; }
+    footer a { color: #475569; }
+    footer a:hover { color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <a class="nav-brand" href="../index.html">Secure<span>Bank AI</span></a>
+  <a href="../index.html">Home</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="interactions.html">Interactions</a>
+  <a href="workflow.html">Workflow</a>
+  <a href="hitl.html" class="active">HITL Patterns</a>
+  <a href="pipeline.html">Pipeline</a>
+  <a href="https://github.com/dpanwar-vigyan/securebank-ai-poc" target="_blank" rel="noopener">GitHub ↗</a>
+  <a href="https://askmybank.ai" target="_blank" rel="noopener" class="demo-btn">🚀 Live Demo</a>
+  <a class="topnav-author" href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank" rel="noopener">
+    <div class="avatar">D</div>
+    <span>Dinesh Singh Panwar</span>
+  </a>
+</nav>
+
+<!-- ── Header ── -->
+<div class="page-header">
+  <div class="section-label">Human-in-the-Loop Design</div>
+  <h1>Four HITL Patterns, <span>Two Orchestration Engines</span></h1>
+  <p class="subtitle">
+    When AI alone isn't enough — a framework for durable, signal-driven, auditable back-office
+    decisions across Temporal and Orkes, connected via Lambda, SQS, ClickHouse, and Appian.
+  </p>
+</div>
+
+<!-- ── Key insight banner ── -->
+<div class="insight-banner">
+  <div class="insight-item">
+    <div class="insight-label">Ticket Source</div>
+    <div class="insight-value">Lambda generates TKT-XXXXXXXX immediately — ClickHouse is the system of record</div>
+  </div>
+  <div class="insight-item">
+    <div class="insight-label">Appian Case Number</div>
+    <div class="insight-value">Separate CASE-XXXXX created by Appian process model — linked via ticket_id</div>
+  </div>
+  <div class="insight-item">
+    <div class="insight-label">Temporal vs Orkes</div>
+    <div class="insight-value">Temporal = Signal push (instant). Orkes = DO_WHILE poll (20s lag). Each chosen for its strength</div>
+  </div>
+  <div class="insight-item">
+    <div class="insight-label">Worker Requirement</div>
+    <div class="insight-value">Temporal: no worker needed (wait-only workflows). Orkes: worker required for task execution</div>
+  </div>
+</div>
+
+<!-- ── Flow cards ── -->
+<div class="section-title">The Four HITL Flows</div>
+<div class="section-sub">Each action type has a different orchestration pattern matched to its operational requirements</div>
+
+<div class="flows-grid">
+
+  <!-- Flow 1: Send Duplicate eStatement -->
+  <div class="flow-card">
+    <div class="flow-header">
+      <div class="flow-icon blue">📄</div>
+      <div class="flow-meta">
+        <div class="flow-title">Send Duplicate eStatement</div>
+        <div class="flow-subtitle">action: send_duplicate</div>
+      </div>
+      <div class="flow-badges">
+        <span class="badge temporal">Temporal</span>
+        <span class="badge sqs">SQS</span>
+        <span class="badge appian">Appian</span>
+        <span class="badge status-built">✓ Built</span>
+      </div>
+    </div>
+    <div class="flow-body">
+      <div class="flow-diagram">
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-chat">UI</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Banker clicks "Send Duplicate" in chat.html</div>
+            <div class="flow-content-desc">Customer requests duplicate statement copy. Banker selects delivery address and document IDs.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-lambda">λ</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Lambda: creates TKT-XXXXXXXX in ClickHouse</div>
+            <div class="flow-content-desc">status=pending. Also publishes SQS message (14-day guaranteed delivery buffer for Appian).</div>
+            <span class="flow-content-note green">Ticket ID generated here — not in Appian</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-temporal">T</div><div class="flow-connector signal"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Temporal: workflow starts — waits for Signal</div>
+            <div class="flow-content-desc">Pure wait-state. Zero compute cost. Durable up to 7 days. No worker process needed.</div>
+            <span class="flow-content-note blue">workflow_id = ticket_id for direct signalling</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-appian">A</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Appian: polls GET /hitl/pending every 60s</div>
+            <div class="flow-content-desc">Creates CASE-XXXXX in Appian case management. Assigns User Task to BackOfficeTeam group. Sends email notification.</div>
+            <span class="flow-content-note">Needs Appian Designer config (~30 min)</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-appian">A</div><div class="flow-connector signal"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Back-office manager reviews SAIL approval form</div>
+            <div class="flow-content-desc">Sees ticket details, customer query, delivery address. Enters decision note. Clicks Approve or Reject.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-signal">⚡</div><div class="flow-connector signal"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Lambda: POST /hitl/{id}/decide → Temporal Signal</div>
+            <div class="flow-content-desc">ClickHouse updated instantly. Signal sent to Temporal Cloud — workflow wakes in milliseconds. No polling.</div>
+            <span class="flow-content-note green">vs Orkes DO_WHILE: 20s polling gap → Signal: &lt;100ms</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-lambda">λ</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Lambda: run_fulfilment() — no worker needed</div>
+            <div class="flow-content-desc">S3 presigned URLs for doc_ids. Bedrock Nova Lite cover letter. ClickHouse → status: completed.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-done">✓</div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">chat.html tray updates to "completed"</div>
+            <div class="flow-content-desc">Polling /hitl/status/{id} every 5s reflects the decision. End-to-end from Approve click: &lt;3s.</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="flow-facts">
+        <div class="fact"><div class="fact-label">SLA</div><div class="fact-value">7 days</div></div>
+        <div class="fact"><div class="fact-label">Engine</div><div class="fact-value">Temporal Cloud</div></div>
+        <div class="fact"><div class="fact-label">Worker</div><div class="fact-value">Not needed</div></div>
+        <div class="fact"><div class="fact-label">Fulfilment</div><div class="fact-value">S3 + Bedrock in Lambda</div></div>
+        <div class="fact"><div class="fact-label">Signal latency</div><div class="fact-value">&lt;100ms</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow 2: Reopen Case -->
+  <div class="flow-card">
+    <div class="flow-header">
+      <div class="flow-icon purple">🔄</div>
+      <div class="flow-meta">
+        <div class="flow-title">Reopen Case</div>
+        <div class="flow-subtitle">action: reopen_case</div>
+      </div>
+      <div class="flow-badges">
+        <span class="badge temporal">Temporal</span>
+        <span class="badge sqs">SQS</span>
+        <span class="badge appian">Appian</span>
+        <span class="badge status-built">✓ Built</span>
+      </div>
+    </div>
+    <div class="flow-body">
+      <div class="flow-diagram">
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-chat">UI</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Banker clicks "Reopen Case" in chat.html</div>
+            <div class="flow-content-desc">Customer disputes that a closed case was resolved incorrectly, or new evidence has emerged.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-lambda">λ</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Lambda: TKT created + Temporal workflow started</div>
+            <div class="flow-content-desc">askmybank_reopen_case workflow. SQS message published for Appian pickup. ClickHouse: status=pending.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-temporal">T</div><div class="flow-connector signal"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Temporal: waits up to 7 days for Signal</div>
+            <div class="flow-content-desc">Dispute cases may take longer — senior manager review required. 7-day SLA window.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-appian">A</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Appian: case created, assigned to senior team</div>
+            <div class="flow-content-desc">Same SAIL approval form as eStatement. Manager sees original query, doc references, customer history note.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-signal">⚡</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Approve → Signal → ClickHouse: status=reopened</div>
+            <div class="flow-content-desc">Temporal wakes instantly. Lambda run_fulfilment() updates ClickHouse. No S3/Bedrock — status update only.</div>
+            <span class="flow-content-note green">Approved = "reopened" | Rejected = "reopen_denied"</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-done">✓</div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Bank's CMS picks up the reopened status</div>
+            <div class="flow-content-desc">ClickHouse is the source of truth. Downstream CMS can poll or subscribe to status changes.</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="flow-facts">
+        <div class="fact"><div class="fact-label">SLA</div><div class="fact-value">7 days</div></div>
+        <div class="fact"><div class="fact-label">Engine</div><div class="fact-value">Temporal Cloud</div></div>
+        <div class="fact"><div class="fact-label">Worker</div><div class="fact-value">Not needed</div></div>
+        <div class="fact"><div class="fact-label">Fulfilment</div><div class="fact-value">ClickHouse status only</div></div>
+        <div class="fact"><div class="fact-label">Outcomes</div><div class="fact-value">reopened / reopen_denied / timeout</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow 3: Legal Export -->
+  <div class="flow-card">
+    <div class="flow-header">
+      <div class="flow-icon amber">⚖️</div>
+      <div class="flow-meta">
+        <div class="flow-title">Legal Export (Document Pipeline)</div>
+        <div class="flow-subtitle">action: legal_export</div>
+      </div>
+      <div class="flow-badges">
+        <span class="badge orkes">Orkes</span>
+        <span class="badge sqs">SQS</span>
+        <span class="badge status-built">✓ Built</span>
+      </div>
+    </div>
+    <div class="flow-body">
+      <div class="flow-diagram">
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-chat">UI</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Banker clicks "Legal Export" in chat.html</div>
+            <div class="flow-content-desc">Compliance / legal team requires certified document package. Complex multi-step processing needed.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-lambda">λ</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Lambda: starts Orkes "askmybank_document_pipeline"</div>
+            <div class="flow-content-desc">TKT created in ClickHouse. Orkes execution ID stored. SQS message published. Orkes UI URL returned.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-orkes">O</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Orkes: visual DAG pipeline executes</div>
+            <div class="flow-content-desc">Textract OCR → chunk → embed → parallel: [S3 vectors] + [ClickHouse metadata] → certified package to legal S3 bucket.</div>
+            <span class="flow-content-note">Needs Orkes worker running (EC2 or local)</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-orkes">O</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">DO_WHILE checks: approval needed?</div>
+            <div class="flow-content-desc">For high-value exports, Orkes polls ClickHouse every 20s via check_ticket_status task. This is the poll model — showcasing Orkes strength for complex DAG pipelines.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-done">✓</div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Legal team gets certified S3 package URL</div>
+            <div class="flow-content-desc">Orkes provides full visual execution history — ideal for compliance audit trail. No Appian involvement needed.</div>
+            <span class="flow-content-note blue">Why Orkes here: complex DAG, parallel steps, visual audit trail for compliance</span>
+          </div>
+        </div>
+
+      </div>
+      <div class="flow-facts">
+        <div class="fact"><div class="fact-label">Engine</div><div class="fact-value">Orkes Conductor</div></div>
+        <div class="fact"><div class="fact-label">Worker</div><div class="fact-value">Required — EC2 / local</div></div>
+        <div class="fact"><div class="fact-label">Decision model</div><div class="fact-value">Poll (DO_WHILE, 20s)</div></div>
+        <div class="fact"><div class="fact-label">Best for</div><div class="fact-value">Multi-step pipelines, compliance audit</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow 4: Escalate to IT -->
+  <div class="flow-card">
+    <div class="flow-header">
+      <div class="flow-icon green">🛠️</div>
+      <div class="flow-meta">
+        <div class="flow-title">Escalate to IT / Content Gap</div>
+        <div class="flow-subtitle">action: escalate_to_it</div>
+      </div>
+      <div class="flow-badges">
+        <span class="badge temporal">Temporal</span>
+        <span class="badge lambda">Lambda</span>
+        <span class="badge status-built">✓ Built</span>
+      </div>
+    </div>
+    <div class="flow-body">
+      <div class="flow-diagram">
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-chat">UI</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Banker clicks "Escalate to IT" in chat.html</div>
+            <div class="flow-content-desc">AI couldn't answer the query — missing content in the knowledge base. Banker flags it for the content/IT team.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-lambda">λ</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Lambda: logs content gap in ClickHouse immediately</div>
+            <div class="flow-content-desc">banking_docs.content_gaps table. Returns GAP-XXXXXXXX. Always succeeds — no workflow needed for simple logging.</div>
+            <span class="flow-content-note green">Simple escalations end here — no approval loop</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-temporal">T</div><div class="flow-connector signal"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Optional: Temporal workflow for tracked SLA</div>
+            <div class="flow-content-desc">For compliance-sensitive gaps, askmybank_escalate_to_it workflow starts. 48-hour IT SLA (shorter than banker flows). Auto-escalates to Head of Content on breach.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-signal">⚡</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">IT team resolves → Signal → gap_resolved</div>
+            <div class="flow-content-desc">IT team uses review.html or Appian to mark resolved. Signal wakes Temporal. ClickHouse updated.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-done">✓</div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Knowledge base updated — AI improves</div>
+            <div class="flow-content-desc">Content gap feeds the re-ingestion pipeline (Orkes document_pipeline). Next time this query runs, AI answers correctly.</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="flow-facts">
+        <div class="fact"><div class="fact-label">SLA</div><div class="fact-value">48 hours</div></div>
+        <div class="fact"><div class="fact-label">Engine</div><div class="fact-value">Temporal (optional)</div></div>
+        <div class="fact"><div class="fact-label">Worker</div><div class="fact-value">Not needed</div></div>
+        <div class="fact"><div class="fact-label">Outcomes</div><div class="fact-value">gap_resolved / gap_deferred / sla_breached</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Platform comparison ── -->
+<div class="compare-section">
+  <div class="section-title">Temporal vs Orkes — Why Each Was Chosen</div>
+  <div class="section-sub">Not a preference — each platform was selected for what it genuinely does best</div>
+
+  <div class="dataflow-card">
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th><span class="tag t">Temporal</span> Signal-driven HITL</th>
+          <th><span class="tag o">Orkes</span> DAG Pipeline</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Decision model</td>
+          <td>Push — banker clicks Approve → Signal → instant wake</td>
+          <td>Pull — DO_WHILE task polls ClickHouse every 20s</td>
+        </tr>
+        <tr>
+          <td>Response latency</td>
+          <td>&lt;100ms from click to workflow continuation</td>
+          <td>Up to 20s polling interval before detection</td>
+        </tr>
+        <tr>
+          <td>Worker requirement</td>
+          <td>None for wait-only workflows — Lambda triggers + signals</td>
+          <td>Required — worker process polls task queue</td>
+        </tr>
+        <tr>
+          <td>Best use case</td>
+          <td>Human approval loops, SLA-bound decisions, HITL gates</td>
+          <td>Multi-step processing pipelines, parallel fan-out, enrichment</td>
+        </tr>
+        <tr>
+          <td>Visual UI</td>
+          <td>Temporal Cloud timeline (event-by-event audit trail)</td>
+          <td>Orkes visual DAG — every task node visible and retryable</td>
+        </tr>
+        <tr>
+          <td>Compliance audit</td>
+          <td>Full event history — who signalled, when, payload</td>
+          <td>Full task execution log — input/output per node, retries</td>
+        </tr>
+        <tr>
+          <td>Scale model</td>
+          <td>Suitable for regional / country-level deployments</td>
+          <td>Built for global enterprise scale, multi-region distribution</td>
+        </tr>
+        <tr>
+          <td>Used for</td>
+          <td>send_duplicate, reopen_case, escalate_to_it</td>
+          <td>legal_export (document ingestion pipeline)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Data stores ── -->
+<div class="dataflow-section">
+  <div class="section-title">Data Store Roles</div>
+  <div class="section-sub">Each store has a single, clear responsibility — no overlap</div>
+
+  <div class="dataflow-card">
+    <div class="dataflow-grid">
+      <div class="dataflow-col">
+        <h4>🟠 ClickHouse <span class="blue">OLAP + HITL Source of Truth</span></h4>
+        <div class="dataflow-item">
+          <div class="dataflow-dot blue"></div>
+          <div class="dataflow-text"><strong>banking_docs.backoffice_requests</strong> — every HITL ticket. Status, resolver, timestamps, workflow_run_id.</div>
+        </div>
+        <div class="dataflow-item">
+          <div class="dataflow-dot blue"></div>
+          <div class="dataflow-text"><strong>banking_docs.content_gaps</strong> — AI quality feedback. Each unanswerable query logged for IT/content team.</div>
+        </div>
+        <div class="dataflow-item">
+          <div class="dataflow-dot blue"></div>
+          <div class="dataflow-text"><strong>banking_docs.documents</strong> — ingested document metadata, s3_path for fulfilment S3 presign.</div>
+        </div>
+        <div class="dataflow-item">
+          <div class="dataflow-dot amber"></div>
+          <div class="dataflow-text"><strong>Why ClickHouse, not DynamoDB?</strong> ClickHouse is OLAP — columnar, fast aggregates. HITL dashboard queries ("all pending tickets") are analytical reads, not key-value lookups. DynamoDB would require GSIs and cost more for this pattern.</div>
+        </div>
+      </div>
+      <div class="dataflow-col">
+        <h4>🟡 SQS <span class="purple">Durable Delivery Buffer</span></h4>
+        <div class="dataflow-item">
+          <div class="dataflow-dot purple"></div>
+          <div class="dataflow-text"><strong>14-day message retention</strong> — if Appian is down, messages queue up and are delivered when it recovers.</div>
+        </div>
+        <div class="dataflow-item">
+          <div class="dataflow-dot purple"></div>
+          <div class="dataflow-text"><strong>Dead-letter queue</strong> — after 3 failed deliveries, messages go to DLQ for investigation.</div>
+        </div>
+        <div class="dataflow-item">
+          <div class="dataflow-dot purple"></div>
+          <div class="dataflow-text"><strong>MessageAttributes</strong> — action type and ticket_id on every message, so Appian can route to the correct process model without parsing the body.</div>
+        </div>
+        <div class="dataflow-item">
+          <div class="dataflow-dot green"></div>
+          <div class="dataflow-text"><strong>Why SQS, not DynamoDB?</strong> SQS is a queue — purpose-built for guaranteed delivery, visibility timeout, and consumer polling. DynamoDB is a database you'd have to poll manually and build queue mechanics on top of.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── What's built ── -->
+<div class="status-section">
+  <div class="section-title">Build Status</div>
+  <div class="section-sub">What runs today vs what needs configuration in Appian Designer</div>
+
+  <div class="status-grid">
+
+    <div class="status-card">
+      <h4>✅ Running in AWS Lambda</h4>
+      <ul class="status-list">
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>POST /hitl — create ticket</strong>Routes to Temporal or Orkes based on action type. Publishes SQS message.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>GET /hitl/status/{id}</strong>Live ClickHouse read — chat.html polls every 5s.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>GET /hitl/pending</strong>All pending tickets for back-office UI. Protected by X-Backoffice-Key.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>POST /hitl/{id}/decide</strong>Updates ClickHouse + sends Temporal Signal + runs fulfilment (S3 + Bedrock).</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>POST /hitl/gap</strong>Content gap logging. Instant — no workflow.</div></li>
+      </ul>
+    </div>
+
+    <div class="status-card">
+      <h4>✅ Temporal Workflows (Temporal Cloud)</h4>
+      <ul class="status-list">
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>askmybank_estatement_duplicate</strong>Wait-state + Signal. S3 + Bedrock fulfilment in Lambda. 7-day SLA.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>askmybank_reopen_case</strong>Wait-state + Signal. ClickHouse status update only. 7-day SLA.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>askmybank_escalate_to_it</strong>Wait-state + Signal. 48-hour IT SLA. Auto-escalates on breach.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>No worker process needed</strong>All three workflows are pure wait-state — Lambda starts and signals them directly.</div></li>
+      </ul>
+    </div>
+
+    <div class="status-card">
+      <h4>✅ Orkes Pipeline (Orkes Cloud)</h4>
+      <ul class="status-list">
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>askmybank_document_pipeline</strong>Textract → chunk → embed → S3 vectors + ClickHouse. Visual DAG in Orkes UI.</div></li>
+        <li><div class="status-icon">⚠️</div><div class="status-text"><strong>Orkes worker required</strong>Must run python -m workflows.orkes.worker during demo (EC2 or local Mac).</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>POST /pipeline/ingest</strong>Lambda triggers pipeline for any S3 document key. Used for new document ingestion.</div></li>
+      </ul>
+    </div>
+
+    <div class="status-card">
+      <h4>⚙️ Appian — Needs Designer Config</h4>
+      <ul class="status-list">
+        <li><div class="status-icon">📄</div><div class="status-text"><strong>Connected System</strong>HTTP + X-Backoffice-Key header. Spec in appian/connected_system_spec.md.</div></li>
+        <li><div class="status-icon">📄</div><div class="status-text"><strong>3 Integration objects</strong>GetPendingTickets, GetTicketStatus, SubmitDecision. Config in appian/expressions/.</div></li>
+        <li><div class="status-icon">📄</div><div class="status-text"><strong>HITLApprovalForm SAIL</strong>Full banker approval form. Paste from appian/interfaces/approval_form.sail.</div></li>
+        <li><div class="status-icon">📄</div><div class="status-text"><strong>HITLPendingDashboard SAIL</strong>Auto-refreshing grid. Paste from appian/interfaces/pending_tickets_dashboard.sail.</div></li>
+        <li><div class="status-icon">📄</div><div class="status-text"><strong>Process Model</strong>Timer → poll → User Task → decide. Node-by-node in appian/process_model_design.md.</div></li>
+        <li><div class="status-icon">📄</div><div class="status-text"><strong>BackOfficeTeam group</strong>Add all managers who approve HITL tickets. ~30 min total config.</div></li>
+      </ul>
+    </div>
+
+    <div class="status-card">
+      <h4>✅ Back-office (without Appian)</h4>
+      <ul class="status-list">
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>review.html</strong>Manual approve/reject UI at /backoffice/review.html. Requires X-Backoffice-Key. Works today — no Appian needed.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>chat.html HITL tray</strong>Live ticket status panel showing all session tickets and their current state.</div></li>
+      </ul>
+    </div>
+
+    <div class="status-card">
+      <h4>✅ Infrastructure (AWS SAM)</h4>
+      <ul class="status-list">
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>SQS HITLQueue + DLQ</strong>14-day retention, 5-min visibility, 20s long-poll, maxReceiveCount=3.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>Lambda IAM</strong>sqs:SendMessage permission added to execution role.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>API Gateway CORS</strong>X-Backoffice-Key and dpanwar-vigyan.github.io added to CorsConfiguration.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>ClickHouse tables</strong>backoffice_requests and content_gaps schemas deployed.</div></li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Footer ── -->
+<footer>
+  <a href="../index.html">Home</a> &nbsp;·&nbsp;
+  <a href="architecture.html">Architecture</a> &nbsp;·&nbsp;
+  <a href="interactions.html">Interactions</a> &nbsp;·&nbsp;
+  <a href="workflow.html">Workflow</a> &nbsp;·&nbsp;
+  <a href="hitl.html">HITL Patterns</a> &nbsp;·&nbsp;
+  <a href="pipeline.html">Pipeline</a> &nbsp;·&nbsp;
+  <a href="https://github.com/dpanwar-vigyan/securebank-ai-poc" target="_blank">GitHub</a> &nbsp;·&nbsp;
+  <a href="https://askmybank.ai" target="_blank">Live Demo</a>
+  <br>
+  SecureBank AI · Built by <a href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank">Dinesh Singh Panwar</a>
+</footer>
+
+</body>
+</html>

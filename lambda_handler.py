@@ -291,18 +291,18 @@ def decide_ticket(
     """
     Back-office manager approves or rejects a ticket.
 
-    Two things happen:
-      1. ClickHouse updated (existing behaviour — Orkes DO_WHILE picks this up
-         for legal_export pipeline; chat UI polling also reads this)
-      2. Temporal Signal sent INSTANTLY — no polling needed for HITL workflows
-         (send_duplicate, reopen_case, escalate_to_it)
+    WORKERLESS design — Lambda does everything, no Temporal worker process needed:
+      1. ClickHouse updated (source of truth + Orkes DO_WHILE for legal_export)
+      2. Temporal Signal sent — workflow wakes and records completion
+      3. If approved: Lambda runs fulfilment directly (S3 + cover note + dispatch log)
+         This replaces what the Temporal activities/worker used to do.
 
     Appian calls this endpoint directly after the banker's decision.
     """
     if BACKOFFICE_KEY and x_backoffice_key != BACKOFFICE_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing X-Backoffice-Key header")
     try:
-        # Step 1: Update ClickHouse (source of truth for status polling + analytics)
+        # Step 1: Update ClickHouse
         result = hitl.update_decision(
             ticket_id     = ticket_id,
             decision      = req.decision,
@@ -310,8 +310,7 @@ def decide_ticket(
             resolver_note = req.resolver_note,
         )
 
-        # Step 2: Send Temporal Signal — workflow wakes INSTANTLY
-        # workflow_id == ticket_id (set at workflow start)
+        # Step 2: Signal Temporal — workflow records decision and completes
         signal_sent = hitl.send_temporal_signal(
             workflow_id    = ticket_id,
             signal_name    = "decision_received",
@@ -322,6 +321,16 @@ def decide_ticket(
             },
         )
         result["temporal_signal_sent"] = signal_sent
+
+        # Step 3: Fulfilment — run directly in Lambda (no worker needed)
+        # For send_duplicate tickets: generate S3 URL + cover note + dispatch log
+        if req.decision == "approved":
+            fulfilment = hitl.run_fulfilment(
+                ticket_id     = ticket_id,
+                resolver_name = req.resolver_name,
+                resolver_note = req.resolver_note,
+            )
+            result["fulfilment"] = fulfilment
 
         return result
     except ValueError as exc:

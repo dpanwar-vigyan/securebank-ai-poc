@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ingestion Pipeline · SecureBank AI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0b1120;
+      color: #e2e8f0;
+      line-height: 1.6;
+      padding: 40px 32px;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(11,17,32,0.96); backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 20px; margin: -40px -32px 40px -32px;
+    }
+    .nav-brand { font-weight: 700; font-size: 1rem; color: #fff; margin-right: auto; text-decoration: none; }
+    .nav-brand span { color: #60a5fa; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 0.82rem; padding: 4px 10px; border-radius: 5px; transition: all 0.2s; }
+    nav a:hover { color: #fff; background: rgba(255,255,255,0.07); }
+    nav a.active { color: #60a5fa; background: rgba(96,165,250,0.1); }
+    .topnav-author { display: flex; align-items: center; gap: 8px; color: #94a3b8; text-decoration: none; font-size: 0.82rem; padding: 4px 10px; border-radius: 5px; transition: all 0.2s; margin-left: 8px; }
+    .topnav-author:hover { color: #fff; background: rgba(255,255,255,0.07); }
+    .avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #1d4ed8); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #fff; }
+    .demo-btn { background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #fff !important; padding: 5px 14px !important; border-radius: 6px; font-weight: 600; }
+
+    /* ── Page header ── */
+    .page-header { margin-bottom: 48px; }
+    .section-label { font-size: 0.7rem; letter-spacing: 0.12em; font-weight: 700; color: #60a5fa; text-transform: uppercase; margin-bottom: 10px; }
+    .section-label::after { content: ''; display: inline-block; width: 60px; height: 1px; background: #60a5fa; opacity: 0.4; vertical-align: middle; margin-left: 10px; }
+    h1 { font-size: 2.2rem; font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 14px; }
+    h1 span { background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { font-size: 1.05rem; color: #94a3b8; max-width: 780px; line-height: 1.7; }
+
+    .section-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .section-sub   { font-size: 0.88rem; color: #64748b; margin-bottom: 24px; }
+
+    /* ── Pipeline DAG diagram ── */
+    .pipeline-section { margin-bottom: 56px; }
+
+    .dag-container {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
+      padding: 36px 28px;
+      overflow-x: auto;
+    }
+
+    /* ── Linear DAG (top to bottom) ── */
+    .dag {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      min-width: 600px;
+    }
+
+    .dag-node {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 12px;
+      padding: 14px 20px;
+      width: 100%;
+      max-width: 560px;
+      transition: border-color 0.2s, transform 0.15s;
+      cursor: default;
+    }
+    .dag-node:hover { border-color: rgba(96,165,250,0.4); transform: scale(1.01); }
+
+    .dag-node-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .dag-node-body { flex: 1; }
+    .dag-node-title { font-size: 0.9rem; font-weight: 700; color: #fff; }
+    .dag-node-desc  { font-size: 0.76rem; color: #64748b; margin-top: 2px; }
+    .dag-node-badge {
+      font-size: 0.67rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 2px 8px; border-radius: 20px; flex-shrink: 0;
+    }
+
+    /* node colour themes */
+    .n-trigger  { background: rgba(59,130,246,0.18);  border-color: rgba(59,130,246,0.3); }
+    .n-trigger  .dag-node-icon { background: rgba(59,130,246,0.25); }
+    .n-trigger  .dag-node-badge { background: rgba(59,130,246,0.2); color: #60a5fa; }
+
+    .n-aws      { background: rgba(245,158,11,0.10);  border-color: rgba(245,158,11,0.25); }
+    .n-aws      .dag-node-icon { background: rgba(245,158,11,0.2); }
+    .n-aws      .dag-node-badge { background: rgba(245,158,11,0.15); color: #f59e0b; }
+
+    .n-orkes    { background: rgba(139,92,246,0.10);  border-color: rgba(139,92,246,0.25); }
+    .n-orkes    .dag-node-icon { background: rgba(139,92,246,0.2); }
+    .n-orkes    .dag-node-badge { background: rgba(139,92,246,0.15); color: #a78bfa; }
+
+    .n-bedrock  { background: rgba(16,185,129,0.10);  border-color: rgba(16,185,129,0.25); }
+    .n-bedrock  .dag-node-icon { background: rgba(16,185,129,0.2); }
+    .n-bedrock  .dag-node-badge { background: rgba(16,185,129,0.15); color: #34d399; }
+
+    .n-store    { background: rgba(249,115,22,0.10);  border-color: rgba(249,115,22,0.25); }
+    .n-store    .dag-node-icon { background: rgba(249,115,22,0.2); }
+    .n-store    .dag-node-badge { background: rgba(249,115,22,0.15); color: #fb923c; }
+
+    .n-hitl     { background: rgba(20,184,166,0.10);  border-color: rgba(20,184,166,0.25); }
+    .n-hitl     .dag-node-icon { background: rgba(20,184,166,0.2); }
+    .n-hitl     .dag-node-badge { background: rgba(20,184,166,0.15); color: #14b8a6; }
+
+    .n-done     { background: rgba(16,185,129,0.10);  border-color: rgba(16,185,129,0.3); }
+    .n-done     .dag-node-icon { background: rgba(16,185,129,0.2); }
+    .n-done     .dag-node-badge { background: rgba(16,185,129,0.15); color: #34d399; }
+
+    /* connector arrows */
+    .dag-connector {
+      display: flex; flex-direction: column; align-items: center;
+      height: 32px; justify-content: center; gap: 0;
+    }
+    .dag-connector-line { width: 2px; flex: 1; background: rgba(255,255,255,0.12); }
+    .dag-connector-arrow { color: rgba(255,255,255,0.3); font-size: 0.75rem; line-height: 1; }
+
+    /* FORK_JOIN block */
+    .dag-fork-label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #a78bfa; margin: 6px 0 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dag-fork-label::before, .dag-fork-label::after {
+      content: ''; flex: 1; height: 1px; background: rgba(139,92,246,0.3);
+    }
+
+    .dag-fork {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      width: 100%;
+      max-width: 560px;
+    }
+    .dag-fork-branch {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .dag-fork-branch .dag-node { max-width: 100%; }
+    .dag-join-label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #a78bfa; margin: 12px 0 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dag-join-label::before, .dag-join-label::after {
+      content: ''; flex: 1; height: 1px; background: rgba(139,92,246,0.3);
+    }
+
+    /* ── Doc type cards ── */
+    .docs-section { margin-bottom: 56px; }
+    .doc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .doc-card {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 22px;
+      transition: border-color 0.2s;
+    }
+    .doc-card:hover { border-color: rgba(96,165,250,0.3); }
+    .doc-card-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+    }
+    .doc-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+    .doc-icon.blue   { background: rgba(59,130,246,0.2); }
+    .doc-icon.purple { background: rgba(139,92,246,0.2); }
+    .doc-icon.amber  { background: rgba(245,158,11,0.2); }
+    .doc-icon.green  { background: rgba(16,185,129,0.2); }
+    .doc-card-title { font-size: 1rem; font-weight: 700; color: #fff; }
+    .doc-card-count { font-size: 0.75rem; color: #64748b; }
+    .doc-meta { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+    .doc-meta-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .doc-meta-label { font-size: 0.72rem; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .doc-meta-value { font-size: 0.8rem; color: #94a3b8; text-align: right; max-width: 65%; }
+    .doc-s3-path {
+      font-family: 'Courier New', monospace;
+      font-size: 0.72rem;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: #60a5fa;
+      word-break: break-all;
+      margin-top: 4px;
+    }
+    .doc-s3-path .bucket { color: #f59e0b; }
+    .doc-curl {
+      font-family: 'Courier New', monospace;
+      font-size: 0.7rem;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 12px;
+      color: #a3e635;
+      white-space: pre;
+      overflow-x: auto;
+      margin-top: 12px;
+      line-height: 1.5;
+    }
+    .doc-curl .cmd { color: #60a5fa; }
+    .doc-curl .str { color: #fbbf24; }
+    .doc-curl .key { color: #c4b5fd; }
+
+    /* ── Demo script section ── */
+    .demo-section { margin-bottom: 56px; }
+    .demo-steps {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .demo-step {
+      display: flex;
+      gap: 20px;
+      padding: 22px 28px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .demo-step:last-child { border-bottom: none; }
+    .demo-step-num {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(96,165,250,0.15); border: 1px solid rgba(96,165,250,0.3);
+      color: #60a5fa; font-weight: 700; font-size: 0.85rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .demo-step-body { flex: 1; }
+    .demo-step-title { font-size: 0.92rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .demo-step-desc  { font-size: 0.82rem; color: #64748b; margin-bottom: 10px; }
+    .code-block {
+      font-family: 'Courier New', monospace;
+      font-size: 0.73rem;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 12px 14px;
+      color: #a3e635;
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+    .code-block .dim    { color: #475569; }
+    .code-block .cmd    { color: #60a5fa; }
+    .code-block .str    { color: #fbbf24; }
+    .code-block .key    { color: #c4b5fd; }
+    .code-block .val    { color: #34d399; }
+    .code-block .comment{ color: #374151; }
+    .step-note {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.73rem; color: #f59e0b;
+      background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 6px; padding: 4px 10px; margin-top: 8px;
+    }
+    .step-note.green { color: #34d399; background: rgba(52,211,153,0.08); border-color: rgba(52,211,153,0.2); }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+    .stat-card {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 18px 20px;
+      text-align: center;
+    }
+    .stat-value { font-size: 1.8rem; font-weight: 800; color: #fff; line-height: 1; margin-bottom: 4px; }
+    .stat-value span { background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-label { font-size: 0.72rem; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+
+    footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 0.78rem; color: #334155; line-height: 2; }
+    footer a { color: #475569; }
+    footer a:hover { color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <a class="nav-brand" href="../index.html">Secure<span>Bank AI</span></a>
+  <a href="../index.html">Home</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="interactions.html">Interactions</a>
+  <a href="workflow.html">Workflow</a>
+  <a href="hitl.html">HITL Patterns</a>
+  <a href="pipeline.html" class="active">Pipeline</a>
+  <a href="https://github.com/dpanwar-vigyan/securebank-ai-poc" target="_blank" rel="noopener">GitHub ↗</a>
+  <a href="https://askmybank.ai" target="_blank" rel="noopener" class="demo-btn">🚀 Live Demo</a>
+  <a class="topnav-author" href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank" rel="noopener">
+    <div class="avatar">D</div>
+    <span>Dinesh Singh Panwar</span>
+  </a>
+</nav>
+
+<!-- ── Header ── -->
+<div class="page-header">
+  <div class="section-label">Document Ingestion Pipeline</div>
+  <h1>PDF → RAG in <span>One API Call</span></h1>
+  <p class="subtitle">
+    Drop any banking document into S3 and call <code style="background:rgba(255,255,255,0.07);padding:2px 7px;border-radius:4px;font-size:0.9em">POST /pipeline/ingest</code>.
+    Orkes orchestrates Textract OCR, Bedrock embeddings, and parallel storage — all visible as a live DAG in the Orkes UI.
+    1,000 real banking PDFs are ready to ingest on demand.
+  </p>
+</div>
+
+<!-- ── Stats ── -->
+<div class="stats-bar">
+  <div class="stat-card"><div class="stat-value"><span>1,000</span></div><div class="stat-label">Sample PDFs in S3</div></div>
+  <div class="stat-card"><div class="stat-value"><span>4</span></div><div class="stat-label">Document Types</div></div>
+  <div class="stat-card"><div class="stat-value"><span>8</span></div><div class="stat-label">Pipeline Stages</div></div>
+  <div class="stat-card"><div class="stat-value"><span>2</span></div><div class="stat-label">Parallel Branches</div></div>
+  <div class="stat-card"><div class="stat-value"><span>256-d</span></div><div class="stat-label">Titan Embeddings</div></div>
+  <div class="stat-card"><div class="stat-value"><span>&lt;60s</span></div><div class="stat-label">Avg Ingest Time</div></div>
+</div>
+
+<!-- ── Pipeline DAG ── -->
+<div class="pipeline-section">
+  <div class="section-title">Pipeline DAG — Live in Orkes UI</div>
+  <div class="section-sub">Every node is a real Orkes SIMPLE task executed by the worker. The FORK_JOIN runs embedding and metadata extraction in parallel.</div>
+
+  <div class="dag-container">
+    <div class="dag">
+
+      <!-- Trigger -->
+      <div class="dag-node n-trigger">
+        <div class="dag-node-icon">🚀</div>
+        <div class="dag-node-body">
+          <div class="dag-node-title">POST /pipeline/ingest</div>
+          <div class="dag-node-desc">Lambda receives s3_key, doc_type, customer_id → starts Orkes workflow. Returns workflow_id + Orkes UI URL immediately.</div>
+        </div>
+        <div class="dag-node-badge">Lambda</div>
+      </div>
+
+      <div class="dag-connector"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
+
+      <!-- Node 1: Detect -->
+      <div class="dag-node n-orkes">
+        <div class="dag-node-icon">🔍</div>
+        <div class="dag-node-body">
+          <div class="dag-node-title">1 · detect_doc_type</div>
+          <div class="dag-node-desc">Classifies document from s3_key path pattern (estatement / dispute / complaint / maintenance). Assigns doc_id. Validates customer_id.</div>
+        </div>
+        <div class="dag-node-badge">Orkes SIMPLE</div>
+      </div>
+
+      <div class="dag-connector"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
+
+      <!-- Node 2: Textract -->
+      <div class="dag-node n-aws">
+        <div class="dag-node-icon">📄</div>
+        <div class="dag-node-body">
+          <div class="dag-node-title">2 · textract_extract</div>
+          <div class="dag-node-desc">Calls AWS Textract <code>start_document_text_detection</code>. Polls until job completes. Returns raw text + page count. Handles scanned / image PDFs via real OCR.</div>
+        </div>
+        <div class="dag-node-badge">AWS Textract</div>
+      </div>
+
+      <div class="dag-connector"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
+
+      <!-- Node 3: Chunk -->
+      <div class="dag-node n-orkes">
+        <div class="dag-node-icon">✂️</div>
+        <div class="dag-node-body">
+          <div class="dag-node-title">3 · chunk_text</div>
+          <div class="dag-node-desc">Splits raw text into 400-token semantic passages with 60-token overlap. Preserves paragraph boundaries. Outputs chunk array with positional metadata.</div>
+        </div>
+        <div class="dag-node-badge">Orkes SIMPLE</div>
+      </div>
+
+      <div class="dag-connector"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
+
+      <!-- FORK_JOIN -->
+      <div class="dag-fork-label">FORK_JOIN — parallel branches</div>
+
+      <div class="dag-fork">
+
+        <!-- Branch A -->
+        <div class="dag-fork-branch">
+          <div class="dag-node n-bedrock" style="max-width:100%">
+            <div class="dag-node-icon">🧠</div>
+            <div class="dag-node-body">
+              <div class="dag-node-title">4a · generate_embeddings</div>
+              <div class="dag-node-desc">Bedrock Titan Embed v2 (256-dim). Batches all chunks. Returns embedding array.</div>
+            </div>
+            <div class="dag-node-badge">Bedrock</div>
+          </div>
+
+          <div class="dag-connector" style="height:20px"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
+
+          <div class="dag-node n-store" style="max-width:100%">
+            <div class="dag-node-icon">📦</div>
+            <div class="dag-node-body">
+              <div class="dag-node-title">5a · update_s3_vectors</div>
+              <div class="dag-node-desc">Appends to vectors.npy + metadata.json in S3. Atomic update — idempotent on retry.</div>
+            </div>
+            <div class="dag-node-badge">S3</div>
+          </div>
+        </div>
+
+        <!-- Branch B -->
+        <div class="dag-fork-branch">
+          <div class="dag-node n-bedrock" style="max-width:100%">
+            <div class="dag-node-icon">📋</div>
+            <div class="dag-node-body">
+              <div class="dag-node-title">4b · parse_metadata</div>
+              <div class="dag-node-desc">Nova Lite LLM extracts structured fields: customer, account, case ref, dates, amounts, branch.</div>
+            </div>
+            <div class="dag-node-badge">Bedrock</div>
+          </div>
+
+          <div class="dag-connector" style="height:20px"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
+
+          <div class="dag-node n-store" style="max-width:100%">
+            <div class="dag-node-icon">🗄️</div>
+            <div class="dag-node-body">
+              <div class="dag-node-title">5b · upsert_clickhouse</div>
+              <div class="dag-node-desc">INSERT/UPDATE banking_docs.documents (ReplacingMergeTree). Doc queryable for RAG immediately.</div>
+            </div>
+            <div class="dag-node-badge">ClickHouse</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="dag-join-label">JOIN — both branches must complete</div>
+
+      <div class="dag-connector"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
+
+      <!-- Node 6: HITL review (WAIT) -->
+      <div class="dag-node n-hitl">
+        <div class="dag-node-icon">👁️</div>
+        <div class="dag-node-body">
+          <div class="dag-node-title">6 · content_review_hitl <span style="font-size:0.68rem;color:#475569;font-weight:400">(WAIT task)</span></div>
+          <div class="dag-node-desc">Orkes WAIT — pauses for optional spot-check of extracted content. Auto-continues after timeout. Human can approve / flag for correction via Orkes UI or back-office.</div>
+        </div>
+        <div class="dag-node-badge">Orkes WAIT</div>
+      </div>
+
+      <div class="dag-connector"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
+
+      <!-- Node 7: Complete -->
+      <div class="dag-node n-done">
+        <div class="dag-node-icon">✅</div>
+        <div class="dag-node-body">
+          <div class="dag-node-title">7 · pipeline_complete</div>
+          <div class="dag-node-desc">Logs doc_id, vector_count, pipeline_status to ClickHouse audit log. Document is now live in RAG — chat queries return it instantly.</div>
+        </div>
+        <div class="dag-node-badge">Done</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Sample Documents ── -->
+<div class="docs-section">
+  <div class="section-title">1,000 Sample Documents Ready to Ingest</div>
+  <div class="section-sub">All generated with realistic UK banking content — real names, account numbers, branch codes, case references, transaction amounts. Stored in S3 by type and date.</div>
+
+  <div class="doc-grid">
+
+    <!-- eStatements -->
+    <div class="doc-card">
+      <div class="doc-card-header">
+        <div class="doc-icon blue">📊</div>
+        <div>
+          <div class="doc-card-title">eStatements</div>
+          <div class="doc-card-count">400 PDFs · 2024–2026</div>
+        </div>
+      </div>
+      <div class="doc-meta">
+        <div class="doc-meta-row"><span class="doc-meta-label">Content</span><span class="doc-meta-value">Monthly account statements with transactions, balance, interest</span></div>
+        <div class="doc-meta-row"><span class="doc-meta-label">Account types</span><span class="doc-meta-value">Current, Savings, Business, Premier, ISA</span></div>
+        <div class="doc-meta-row"><span class="doc-meta-label">S3 path</span><span class="doc-meta-value">—</span></div>
+      </div>
+      <div class="doc-s3-path"><span class="bucket">s3://banking-docs-poc-qahftr/</span>estatements/2026/01/STMT00008.pdf</div>
+      <div class="doc-curl"><span class="cmd">curl</span> -X POST <span class="str">".../pipeline/ingest"</span> \
+  -d '{<span class="key">"s3_key"</span>: <span class="str">"estatements/2026/01/STMT00008.pdf"</span>,
+       <span class="key">"doc_type"</span>: <span class="str">"eStatement"</span>,
+       <span class="key">"customer_id"</span>: <span class="str">"CUST00042"</span>}'</div>
+    </div>
+
+    <!-- Disputes -->
+    <div class="doc-card">
+      <div class="doc-card-header">
+        <div class="doc-icon purple">⚔️</div>
+        <div>
+          <div class="doc-card-title">Dispute Cases</div>
+          <div class="doc-card-count">250 PDFs · 2024–2026</div>
+        </div>
+      </div>
+      <div class="doc-meta">
+        <div class="doc-meta-row"><span class="doc-meta-label">Content</span><span class="doc-meta-value">Unauthorised transactions, merchant disputes, ATM errors, card fraud</span></div>
+        <div class="doc-meta-row"><span class="doc-meta-label">Status mix</span><span class="doc-meta-value">Open, Resolved, Closed-Won, Referred to Ombudsman</span></div>
+        <div class="doc-meta-row"><span class="doc-meta-label">S3 path</span><span class="doc-meta-value">—</span></div>
+      </div>
+      <div class="doc-s3-path"><span class="bucket">s3://banking-docs-poc-qahftr/</span>disputes/2026/01/DSP00015.pdf</div>
+      <div class="doc-curl"><span class="cmd">curl</span> -X POST <span class="str">".../pipeline/ingest"</span> \
+  -d '{<span class="key">"s3_key"</span>: <span class="str">"disputes/2026/01/DSP00015.pdf"</span>,
+       <span class="key">"doc_type"</span>: <span class="str">"Dispute"</span>,
+       <span class="key">"customer_id"</span>: <span class="str">"CUST00019"</span>}'</div>
+    </div>
+
+    <!-- Complaints -->
+    <div class="doc-card">
+      <div class="doc-card-header">
+        <div class="doc-icon amber">📢</div>
+        <div>
+          <div class="doc-card-title">Formal Complaints</div>
+          <div class="doc-card-count">200 PDFs · 2024–2026</div>
+        </div>
+      </div>
+      <div class="doc-meta">
+        <div class="doc-meta-row"><span class="doc-meta-label">Content</span><span class="doc-meta-value">Poor service, online banking issues, fee disputes, product mis-selling</span></div>
+        <div class="doc-meta-row"><span class="doc-meta-label">Priority</span><span class="doc-meta-value">Low / Medium / High / Critical with compensation amounts</span></div>
+        <div class="doc-meta-row"><span class="doc-meta-label">S3 path</span><span class="doc-meta-value">—</span></div>
+      </div>
+      <div class="doc-s3-path"><span class="bucket">s3://banking-docs-poc-qahftr/</span>complaints/2026/01/CMP00020.pdf</div>
+      <div class="doc-curl"><span class="cmd">curl</span> -X POST <span class="str">".../pipeline/ingest"</span> \
+  -d '{<span class="key">"s3_key"</span>: <span class="str">"complaints/2026/01/CMP00020.pdf"</span>,
+       <span class="key">"doc_type"</span>: <span class="str">"Complaint"</span>,
+       <span class="key">"customer_id"</span>: <span class="str">"CUST00099"</span>}'</div>
+    </div>
+
+    <!-- Maintenance -->
+    <div class="doc-card">
+      <div class="doc-card-header">
+        <div class="doc-icon green">🔧</div>
+        <div>
+          <div class="doc-card-title">Account Maintenance</div>
+          <div class="doc-card-count">150 PDFs · 2024–2026</div>
+        </div>
+      </div>
+      <div class="doc-meta">
+        <div class="doc-meta-row"><span class="doc-meta-label">Content</span><span class="doc-meta-value">Address changes, overdraft amendments, beneficiary additions, SO changes</span></div>
+        <div class="doc-meta-row"><span class="doc-meta-label">Types</span><span class="doc-meta-value">8 maintenance request types across 10 UK branches</span></div>
+        <div class="doc-meta-row"><span class="doc-meta-label">S3 path</span><span class="doc-meta-value">—</span></div>
+      </div>
+      <div class="doc-s3-path"><span class="bucket">s3://banking-docs-poc-qahftr/</span>maintenance/2026/01/MNT00010.pdf</div>
+      <div class="doc-curl"><span class="cmd">curl</span> -X POST <span class="str">".../pipeline/ingest"</span> \
+  -d '{<span class="key">"s3_key"</span>: <span class="str">"maintenance/2026/01/MNT00010.pdf"</span>,
+       <span class="key">"doc_type"</span>: <span class="str">"AccountMaintenance"</span>,
+       <span class="key">"customer_id"</span>: <span class="str">"CUST00010"</span>}'</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Demo Script ── -->
+<div class="demo-section">
+  <div class="section-title">Demo Script — Step by Step</div>
+  <div class="section-sub">Run this exactly to show the pipeline live. Takes ~60 seconds end-to-end.</div>
+
+  <div class="demo-steps">
+
+    <div class="demo-step">
+      <div class="demo-step-num">1</div>
+      <div class="demo-step-body">
+        <div class="demo-step-title">Start the Orkes worker (keep terminal open)</div>
+        <div class="demo-step-desc">The pipeline uses SIMPLE tasks — a worker process must be running to pick them up from the Orkes task queue.</div>
+        <div class="code-block"><span class="dim">cd /Users/dineshsinghpanwar/banking-poc</span>
+<span class="dim">source .venv/bin/activate</span>
+<span class="cmd">python -m workflows.orkes.worker</span>
+<span class="comment"># Wait for: "✅ Worker started"</span></div>
+        <div class="step-note">⚠️ Leave this terminal open for the entire demo</div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-step-num">2</div>
+      <div class="demo-step-body">
+        <div class="demo-step-title">Trigger ingestion of a new complaint PDF</div>
+        <div class="demo-step-desc">POST to the Lambda endpoint. Lambda starts the Orkes workflow and returns a UI URL immediately — the pipeline runs asynchronously.</div>
+        <div class="code-block"><span class="cmd">curl</span> -s -X POST \
+  <span class="str">https://r6v15i892m.execute-api.us-east-1.amazonaws.com/pipeline/ingest</span> \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d '{
+    <span class="key">"s3_key"</span>:        <span class="val">"complaints/2026/01/CMP00020.pdf"</span>,
+    <span class="key">"doc_type"</span>:      <span class="val">"Complaint"</span>,
+    <span class="key">"customer_id"</span>:   <span class="val">"CUST00099"</span>,
+    <span class="key">"source_system"</span>: <span class="val">"manual"</span>
+  }' | python3 -m json.tool</div>
+        <div class="step-note green">✓ Response includes orkes_ui_url — open it in browser immediately</div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-step-num">3</div>
+      <div class="demo-step-body">
+        <div class="demo-step-title">Open the Orkes UI — watch the DAG execute live</div>
+        <div class="demo-step-desc">The response JSON contains <code style="background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:3px">orkes_ui_url</code> pointing directly to the running execution. Open it to see:</div>
+        <div class="code-block"><span class="comment">Expected response:</span>
+{
+  <span class="key">"workflow_id"</span>:   <span class="val">"&lt;uuid&gt;"</span>,
+  <span class="key">"workflow_name"</span>: <span class="val">"askmybank_document_pipeline"</span>,
+  <span class="key">"s3_key"</span>:        <span class="val">"complaints/2026/01/CMP00020.pdf"</span>,
+  <span class="key">"doc_type"</span>:      <span class="val">"Complaint"</span>,
+  <span class="key">"orkes_ui_url"</span>:  <span class="val">"https://developer.orkescloud.com/execution/&lt;id&gt;"</span>,
+  <span class="key">"status"</span>:        <span class="val">"started"</span>
+}</div>
+        <div class="step-note green">✓ In the Orkes UI you see each task node turn green one by one — detect → textract → chunk → [embed ‖ metadata] → JOIN → complete</div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-step-num">4</div>
+      <div class="demo-step-body">
+        <div class="demo-step-title">Show the parallel FORK_JOIN in Orkes (the visual showpiece)</div>
+        <div class="demo-step-desc">Once textract and chunk complete, the DAG splits into two branches running simultaneously. This is what Orkes does better than most orchestrators — visual parallel execution with guaranteed join.</div>
+        <div class="step-note green">✓ Branch A: generate_embeddings → update_s3_vectors (Bedrock Titan → S3)</div>
+        <div style="margin-top:6px" class="step-note green">✓ Branch B: parse_metadata → upsert_clickhouse (Nova Lite LLM → ClickHouse)</div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-step-num">5</div>
+      <div class="demo-step-body">
+        <div class="demo-step-title">Query the ingested document in chat.html</div>
+        <div class="demo-step-desc">Once pipeline_complete turns green (~60s), the document is live in RAG. Open chat.html and ask about the complaint you just ingested.</div>
+        <div class="code-block"><span class="comment"># Try these queries after ingesting CMP00020.pdf:</span>
+<span class="str">"Show me formal complaints raised in January 2026"</span>
+<span class="str">"What complaint was logged for customer CUST00099?"</span>
+<span class="str">"Are there any critical priority complaints this year?"</span></div>
+        <div class="step-note green">✓ AI retrieves the exact document — demonstrating the full pipeline→RAG→chat loop</div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-step-num">6</div>
+      <div class="demo-step-body">
+        <div class="demo-step-title">Bonus: ingest a dispute to show OCR (Textract takes longer)</div>
+        <div class="demo-step-desc">Dispute PDFs are slightly more complex — Textract's async job takes a few extra seconds. This is a natural talking point: "for scanned documents Textract does real OCR — that's why this task has a 1-hour timeout."</div>
+        <div class="code-block"><span class="cmd">curl</span> -s -X POST \
+  <span class="str">https://r6v15i892m.execute-api.us-east-1.amazonaws.com/pipeline/ingest</span> \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d '{
+    <span class="key">"s3_key"</span>:      <span class="val">"disputes/2026/01/DSP00015.pdf"</span>,
+    <span class="key">"doc_type"</span>:    <span class="val">"Dispute"</span>,
+    <span class="key">"customer_id"</span>: <span class="val">"CUST00019"</span>
+  }' | python3 -m json.tool</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Footer ── -->
+<footer>
+  <a href="../index.html">Home</a> &nbsp;·&nbsp;
+  <a href="architecture.html">Architecture</a> &nbsp;·&nbsp;
+  <a href="interactions.html">Interactions</a> &nbsp;·&nbsp;
+  <a href="workflow.html">Workflow</a> &nbsp;·&nbsp;
+  <a href="hitl.html">HITL Patterns</a> &nbsp;·&nbsp;
+  <a href="pipeline.html">Pipeline</a> &nbsp;·&nbsp;
+  <a href="https://github.com/dpanwar-vigyan/securebank-ai-poc" target="_blank">GitHub</a> &nbsp;·&nbsp;
+  <a href="https://askmybank.ai" target="_blank">Live Demo</a>
+  <br>
+  SecureBank AI · Built by <a href="https://www.linkedin.com/in/dinesh-singh-panwar-2734471a/" target="_blank">Dinesh Singh Panwar</a>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,48 @@
+/*
+  Expression: Fetch Pending Tickets
+  ===================================
+  Calls GET /hitl/pending and returns the list of tickets.
+  Use this in the Process Model's "Call Integration" node.
+
+  HOW TO USE IN APPIAN:
+  - In the Integration node, map the output:
+      pv!tickets = rule!AskMyBank_GetPendingTickets()
+  - Or call it inline in a SAIL interface to refresh:
+      a!localVariables(
+        local!result: rule!AskMyBank_GetPendingTickets(),
+        ...
+      )
+
+  RESPONSE SHAPE (from Lambda):
+  {
+    "tickets": [
+      {
+        "ticket_id":      "tkt_abc123",
+        "action":         "send_duplicate",
+        "status":         "pending",
+        "original_query": "customer asked for last 3 months eStatement",
+        "user_note":      "Customer called twice",
+        "delivery_address":"123 Main St, London",
+        "customer_id":    "CUST00042",
+        "doc_ids":        ["doc_001", "doc_002"],
+        "created_at":     "2025-05-15T10:30:00Z"
+      }
+    ],
+    "count": 1
+  }
+*/
+
+/* ── Inline call (use in SAIL local variables) ─────────────────────────── */
+a!localVariables(
+  local!response: rule!AskMyBank_GetPendingTickets(),
+  local!tickets:  local!response.result.body.tickets,
+  local!count:    local!response.result.body.count,
+  local!success:  not(local!response.error),
+
+  if(
+    local!success,
+    local!tickets,
+    /* On error, return empty list — process model logs the failure */
+    {}
+  )
+)
