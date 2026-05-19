@@ -1,0 +1,53 @@
+/*
+  Expression: Submit Decision
+  ============================
+  Calls POST /hitl/{ticket_id}/decide to approve or reject a ticket.
+
+  HOW TO USE IN APPIAN PROCESS MODEL:
+  - Place a "Call Integration" node after the User Task completes
+  - Input mappings:
+      ticket_id     = pv!activeTicket.ticket_id
+      decision      = pv!bankerDecision          (either "approved" or "rejected")
+      resolver_name = pv!bankerName              (logged-in user's name)
+      resolver_note = pv!bankerNote              (free-text comment)
+
+  RESPONSE SHAPE (from Lambda):
+  {
+    "ticket_id":            "tkt_abc123",
+    "status":               "approved",
+    "decision":             "approved",
+    "resolver_name":        "Jane Smith",
+    "resolver_note":        "Verified address matches CRM",
+    "resolved_at":          "2025-05-15T11:05:00Z",
+    "temporal_signal_sent": true
+  }
+*/
+
+/* ── Request body expression (paste into Integration request body field) ── */
+a!toJson(
+  a!map(
+    decision:      ri!decision,       /* "approved" | "rejected" */
+    resolver_name: ri!resolver_name,  /* banker's full name */
+    resolver_note: ri!resolver_note   /* optional comment */
+  )
+)
+
+
+/* ── Full call expression (use in SAIL Save button or process node) ──────── */
+/*
+  Usage in a SAIL component saveInto:
+
+  a!save(
+    local!submitResult,
+    rule!AskMyBank_SubmitDecision(
+      ticket_id:     local!ticket.ticket_id,
+      decision:      local!bankerDecision,
+      resolver_name: loggedInUser().firstName & " " & loggedInUser().lastName,
+      resolver_note: local!bankerNote
+    )
+  )
+
+  Then check:
+    local!submitResult.result.body.temporal_signal_sent = true
+  to confirm the Temporal Signal reached the workflow immediately.
+*/

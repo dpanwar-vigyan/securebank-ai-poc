@@ -397,26 +397,57 @@ class HITLClient:
             from workflows.temporal.workflows.estatement_workflow import (
                 EstatementDuplicateWorkflow, EstatementInput,
             )
+            from workflows.temporal.workflows.reopen_workflow import (
+                ReopenCaseWorkflow, ReopenCaseInput,
+            )
+            from workflows.temporal.workflows.escalate_workflow import (
+                EscalateToITWorkflow, EscalateToITInput,
+            )
             from datetime import timedelta
 
             client = await get_client()
 
-            # Map workflow name → workflow class + input type
-            wf_class = EstatementDuplicateWorkflow   # extend when more workflows added
-            inp = EstatementInput(
-                ticket_id        = workflow_input.get("ticket_id", ""),
-                doc_ids          = workflow_input.get("doc_ids", []),
-                delivery_address = workflow_input.get("delivery_address", ""),
-                original_query   = workflow_input.get("original_query", ""),
-                customer_id      = workflow_input.get("customer_id", ""),
-            )
+            # ── Route workflow name → class + typed input ─────────────────────
+            if workflow_name == "askmybank_reopen_case":
+                wf_class  = ReopenCaseWorkflow
+                inp       = ReopenCaseInput(
+                    ticket_id      = workflow_input.get("ticket_id", ""),
+                    doc_ids        = workflow_input.get("doc_ids", []),
+                    original_query = workflow_input.get("original_query", ""),
+                    customer_id    = workflow_input.get("customer_id", ""),
+                    user_note      = workflow_input.get("user_note", ""),
+                )
+                timeout = timedelta(days=7)
+
+            elif workflow_name == "askmybank_escalate_to_it":
+                wf_class  = EscalateToITWorkflow
+                inp       = EscalateToITInput(
+                    ticket_id      = workflow_input.get("ticket_id", ""),
+                    original_query = workflow_input.get("original_query", ""),
+                    user_note      = workflow_input.get("user_note", ""),
+                    customer_id    = workflow_input.get("customer_id", ""),
+                    doc_ids        = workflow_input.get("doc_ids", []),
+                )
+                timeout = timedelta(hours=48)   # IT has shorter SLA
+
+            else:
+                # Default: eStatement duplicate
+                wf_class  = EstatementDuplicateWorkflow
+                inp       = EstatementInput(
+                    ticket_id        = workflow_input.get("ticket_id", ""),
+                    doc_ids          = workflow_input.get("doc_ids", []),
+                    delivery_address = workflow_input.get("delivery_address", ""),
+                    original_query   = workflow_input.get("original_query", ""),
+                    customer_id      = workflow_input.get("customer_id", ""),
+                )
+                timeout = timedelta(days=7)
 
             handle = await client.start_workflow(
                 wf_class.run,
                 inp,
-                id              = wf_id,
-                task_queue      = TASK_QUEUE,
-                execution_timeout = timedelta(days=7),
+                id                = wf_id,
+                task_queue        = TASK_QUEUE,
+                execution_timeout = timeout,
             )
             return handle.id
 
@@ -474,6 +505,141 @@ class HITLClient:
         except Exception as exc:
             print(f"HITLClient: Signal failed ({exc})")
             return False
+
+    def run_fulfilment(
+        self,
+        ticket_id:     str,
+        resolver_name: str,
+        resolver_note: str = "",
+    ) -> dict:
+        """
+        WORKERLESS design: runs post-approval fulfilment directly in Lambda.
+        Replaces what the Temporal worker activities used to do.
+
+        Fetches ticket details from ClickHouse, then:
+          - send_duplicate: generates S3 presigned URL + Bedrock cover note
+          - reopen_case / others: logs the action (extensible)
+
+        Runs synchronously within the Lambda /hitl/{id}/decide handler.
+        Total time: ~5s (S3 presign + Bedrock call + ClickHouse write).
+        Well within Lambda's 29s API Gateway timeout.
+        """
+        import json
+        import boto3
+        from datetime import datetime, timezone
+
+        ch = self._get_ch()
+        if not ch:
+            return {"skipped": True, "reason": "ClickHouse unavailable"}
+
+        # ── Fetch ticket to get action + doc_ids + delivery_address ──────────
+        try:
+            rows = ch.query(
+                "SELECT action, doc_ids, delivery_address, customer_id "
+                "FROM banking_docs.backoffice_requests "
+                "WHERE ticket_id = {tid:String} LIMIT 1",
+                parameters={"tid": ticket_id},
+            ).result_rows
+        except Exception as exc:
+            print(f"run_fulfilment: CH fetch failed ({exc})")
+            return {"skipped": True, "reason": str(exc)}
+
+        if not rows:
+            return {"skipped": True, "reason": "ticket not found"}
+
+        action, doc_ids_raw, delivery_address, customer_id = rows[0]
+        doc_ids = json.loads(doc_ids_raw) if doc_ids_raw else []
+
+        if action != "send_duplicate":
+            # Other actions (reopen_case, escalate_to_it) — log and return
+            print(f"run_fulfilment: no extra fulfilment needed for {action}")
+            return {"action": action, "status": "noted"}
+
+        # ── send_duplicate: S3 presigned URLs ────────────────────────────────
+        s3      = boto3.client("s3", region_name=os.getenv("BEDROCK_REGION", "us-east-1"))
+        bucket  = os.getenv("S3_VECTORS_BUCKET", "askmybank-vectors")
+        urls    = []
+
+        for doc_id in doc_ids[:5]:
+            try:
+                s3_rows = ch.query(
+                    "SELECT s3_path FROM banking_docs.documents "
+                    "WHERE doc_id = {did:String} LIMIT 1",
+                    parameters={"did": doc_id},
+                ).result_rows
+                s3_path = s3_rows[0][0] if s3_rows else f"documents/{doc_id}.pdf"
+            except Exception:
+                s3_path = f"documents/{doc_id}.pdf"
+
+            try:
+                url = s3.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": bucket, "Key": s3_path},
+                    ExpiresIn=86400,
+                )
+            except Exception:
+                url = f"s3://{bucket}/{s3_path}"   # fallback for demo
+
+            urls.append({"doc_id": doc_id, "url": url})
+
+        # ── Bedrock cover note ────────────────────────────────────────────────
+        today  = datetime.now(timezone.utc).strftime("%d %B %Y")
+        prompt = (
+            f"Write a brief professional cover letter for a bank statement duplicate.\n"
+            f"Customer ID: {customer_id}, Docs: {doc_ids}, "
+            f"Address: {delivery_address}, Date: {today}, Bank: SecureBank PLC.\n"
+            f"Under 120 words. UK banking tone. Sign off as SecureBank Customer Services."
+        )
+        cover_note = ""
+        try:
+            bedrock = boto3.client(
+                "bedrock-runtime",
+                region_name=os.getenv("BEDROCK_REGION", "us-east-1"),
+            )
+            body = json.dumps({
+                "messages":        [{"role": "user", "content": [{"text": prompt}]}],
+                "inferenceConfig": {"maxTokens": 250, "temperature": 0.3},
+            })
+            resp       = bedrock.invoke_model(
+                modelId=os.getenv("LLM_MODEL", "us.amazon.nova-lite-v1:0"),
+                body=body, contentType="application/json",
+            )
+            cover_note = json.loads(resp["body"].read())["output"]["message"]["content"][0]["text"]
+        except Exception as exc:
+            print(f"run_fulfilment: Bedrock failed ({exc}) — using template")
+            cover_note = (
+                f"SecureBank PLC\n{today}\n\nDear Customer ({customer_id}),\n\n"
+                f"Enclosed: certified duplicate copies {doc_ids}.\n"
+                f"Delivery: {delivery_address}\n\nSecureBank Customer Services"
+            )
+
+        # ── Update ClickHouse with dispatch details ───────────────────────────
+        now  = datetime.now(timezone.utc)
+        note = (
+            f"Dispatched {now.strftime('%Y-%m-%d %H:%M')} UTC | "
+            f"Address: {delivery_address[:80]} | "
+            f"S3: {'✅' if urls else '⚠️'} | "
+            f"Approved by: {resolver_name}"
+        )
+        try:
+            ch.command(
+                "ALTER TABLE banking_docs.backoffice_requests "
+                "UPDATE status = 'completed', resolver_note = {note:String}, "
+                "       updated_at = {ts:DateTime} "
+                "WHERE ticket_id = {tid:String}",
+                parameters={"note": note, "ts": now, "tid": ticket_id},
+            )
+        except Exception as exc:
+            print(f"run_fulfilment: CH update failed ({exc})")
+
+        print(f"run_fulfilment: ✅ {ticket_id} dispatched — {len(urls)} docs")
+        return {
+            "action":      "send_duplicate",
+            "status":      "dispatched",
+            "doc_urls":    urls,
+            "cover_note":  cover_note,
+            "dispatch_at": now.isoformat(),
+        }
 
     def _store_workflow_run_id(self, ticket_id: str, workflow_run_id: str):
         """Write the Orkes workflow instance ID back to the ClickHouse ticket."""

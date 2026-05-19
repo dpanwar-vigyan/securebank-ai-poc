@@ -1,0 +1,46 @@
+/*
+  Expression: Get Ticket Status
+  ==============================
+  Calls GET /hitl/status/{ticket_id} and returns the live ticket record.
+  Used by HITLApprovalForm to fetch the ticket on load and after submit.
+
+  HOW TO USE:
+  Create a second Integration object:
+    Name:         AskMyBank_GetTicketStatus
+    Connected:    AskMyBank_Lambda_API
+    Method:       GET
+    URL path:     /hitl/status/{ticket_id}
+    Path param:   ticket_id (Text, required)
+    Response:     JSON
+
+  RESPONSE SHAPE (from Lambda):
+  {
+    "ticket_id":        "tkt_abc123",
+    "action":           "send_duplicate",
+    "status":           "pending",
+    "original_query":   "...",
+    "user_note":        "...",
+    "delivery_address": "123 Main St",
+    "customer_id":      "CUST00042",
+    "doc_ids":          ["doc_001"],
+    "created_at":       "2025-05-15T10:30:00Z",
+    "resolver_name":    null,
+    "resolver_note":    null,
+    "resolved_at":      null
+  }
+
+  INLINE CALL EXAMPLE:
+*/
+
+a!localVariables(
+  local!resp: rule!AskMyBank_GetTicketStatus(ticket_id: ri!ticket_id),
+  if(
+    local!resp.error,
+    a!map(
+      ticket_id: ri!ticket_id,
+      status:    "error",
+      error:     local!resp.error.detail
+    ),
+    local!resp.result.body
+  )
+)
