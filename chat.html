@@ -225,11 +225,109 @@
   .hitl-row-orkes:hover { text-decoration:underline; }
   .hitl-tray-empty { text-align:center; color:#99aabb; font-size:12px; padding:20px; }
 
-  /* ── Mobile ── */
-  @media (max-width:680px) {
-    .sidebar { display:none; }
-    .messages { padding:12px; gap:12px; }
-    .input-bar { padding:10px 12px; }
+  /* ── Question chip strip — lives inside the message scroll area ── */
+  /* Desktop: hidden (sidebar handles it). Mobile: visible via media query. */
+  .mobile-questions { display: none; }
+  .mq-label {
+    flex-shrink: 0;
+    font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+    text-transform: uppercase; color: #7799bb; white-space: nowrap;
+  }
+  .mq-chip {
+    flex-shrink: 0;
+    background: #fff; border: 1.5px solid #c8d8ec; border-radius: 20px;
+    padding: 7px 14px; font-size: 13px; font-weight: 500; color: #334455;
+    cursor: pointer; white-space: nowrap; font-family: 'Inter', sans-serif;
+    -webkit-tap-highlight-color: transparent; transition: background .15s, border-color .15s;
+  }
+  .mq-chip:active { background: #ddeeff; border-color: #0055a5; color: #0044aa; }
+
+  /* Text variants for mobile vs desktop */
+  .mobile-only  { display: none; }
+  .desktop-only { display: inline; }
+
+  /* ── Mobile — everything below 680px ── */
+  @media (max-width: 680px) {
+
+    /* GATE — reduce padding so it fits without scrolling */
+    .gate-card { padding: 28px 22px; border-radius: 16px; }
+    .gate-icon  { font-size: 36px; margin-bottom: 10px; }
+    .gate-title { font-size: 18px; }
+    .gate-sub   { font-size: 12px; margin-bottom: 20px; }
+    .gate-hint  { font-size: 11px; }
+
+    /* NAV — brand only, strip all links */
+    nav { height: 44px; padding: 0 16px; }
+    .nav-right { display: none; }
+
+    /* HIDE non-essential chrome — gives messages maximum space */
+    .sidebar     { display: none; }
+    .context-bar { display: none; }
+    .chat-footer { display: none; }
+
+    /* WELCOME — compact */
+    .welcome { padding: 14px 16px; border-radius: 12px; }
+    .welcome h2 { font-size: 15px; margin-bottom: 4px; }
+    .welcome p  { font-size: 12px; line-height: 1.55; }
+    .mobile-only  { display: inline; }
+    .desktop-only { display: none; }
+
+    /* CHIP STRIP — show as horizontal swipe row inside message scroll */
+    .mobile-questions {
+      display: flex;
+      overflow-x: auto;
+      gap: 8px;
+      padding: 4px 0 8px;
+      align-items: center;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .mobile-questions::-webkit-scrollbar { display: none; }
+
+    /* MESSAGES */
+    .messages { padding: 12px; gap: 12px; }
+
+    /* BUBBLES */
+    .msg { gap: 8px; }
+    .msg-avatar { width: 28px; height: 28px; font-size: 14px; flex-shrink: 0; }
+    .msg-avatar.user { font-size: 11px; }
+    .msg-bubble { font-size: 13px; line-height: 1.65; padding: 10px 13px; }
+    .msg.user .msg-bubble { margin-left: 6px; }
+
+    /* EXPANDABLE panels */
+    .expand-btn { font-size: 12px; padding: 5px 10px; }
+
+    /* DATA TABLES — horizontal scroll */
+    .ch-table-wrap { border-radius: 8px; }
+    .ch-table { font-size: 11px; }
+    .ch-table th, .ch-table td { padding: 5px 8px; white-space: nowrap; }
+    .md-table { font-size: 12px; }
+    .md-table th, .md-table td { padding: 5px 8px; }
+
+    /* PERF FOOTER */
+    .perf-footer { flex-direction: column; gap: 5px; padding: 6px 10px; }
+    .it-link { align-self: flex-start; font-size: 11px; }
+
+    /* INPUT BAR — compact, iOS-safe font size */
+    .input-bar { padding: 8px 12px 16px; gap: 8px; }
+    .input-hint { display: none; }
+    /* 16px REQUIRED — prevents iOS Safari auto-zoom on textarea focus */
+    textarea { font-size: 16px; padding: 9px 13px; border-radius: 10px; }
+    .send-btn { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
+
+    /* HITL TRAY — compact */
+    .hitl-tray-header { padding: 6px 12px; }
+    .hitl-tray.open { max-height: 200px; }
+    .hitl-row { gap: 6px; padding: 5px 7px; }
+    .hitl-row-id { min-width: 100px; font-size: 10px; }
+
+    /* HITL MODAL — full-width on mobile */
+    .hitl-modal { width: 95%; padding: 24px 20px; border-radius: 14px; }
+    .hitl-modal-title { font-size: 16px; }
+
+    /* SOURCE CARDS */
+    .source-card { padding: 8px 11px; font-size: 12px; }
+    .source-card-id { font-size: 12px; }
   }
 </style>
 </head>
@@ -328,8 +426,11 @@
       <div class="welcome">
         <h2>👋 Welcome to AskMyBank.ai</h2>
         <p>I search across <strong>1,000 real bank case documents</strong> — disputes, complaints, eStatements and account maintenance — using semantic vector search + live ClickHouse NL→SQL analytics.<br><br>
-        Pick a question from the sidebar or type your own below.</p>
+        <span class="desktop-only">Pick a question from the sidebar or type your own below.</span><span class="mobile-only">Tap a question below, or type your own.</span></p>
       </div>
+      <!-- Chip strip: hidden on desktop, swipeable on mobile.
+           Inside the scroll area so it disappears naturally as the conversation grows. -->
+      <div class="mobile-questions" id="mobileQuestions"></div>
     </div>
 
     <div class="input-bar">
@@ -723,6 +824,53 @@ function drillInto(query) {
   document.getElementById('queryInput').value = query;
   sendMessage();
 }
+
+// ── Mobile question chip strip ────────────────────────────────────────────────
+// Horizontal swipe strip of tappable chips — shown only on mobile (CSS controls).
+// Populated from the same question list as the desktop sidebar.
+// Swipe = natural mobile gesture. Chips = large enough tap target unlike marquee text.
+function initMobileQuestions() {
+  const strip = document.getElementById('mobileQuestions');
+  if (!strip) return;
+
+  const questions = [
+    // Analytics
+    'How many complaints were raised each year?',
+    'Which customers had disputes over $5,000?',
+    'Total compensation paid by year',
+    'Most common dispute type',
+    'How many disputes per branch?',
+    'Breakdown of complaints by type',
+    'Average dispute amount by branch',
+    // Document search
+    'Summarise the complaint from Mathew Little',
+    'What was the dispute about in case DSP00012?',
+    'Show all high priority complaints from Leeds branch',
+    'Tell me about the mortgage complaints this year',
+    'What complaints were referred to the Ombudsman?',
+  ];
+
+  const label = document.createElement('span');
+  label.className = 'mq-label';
+  label.textContent = 'Try:';
+  strip.appendChild(label);
+
+  questions.forEach(q => {
+    const chip = document.createElement('button');
+    chip.className = 'mq-chip';
+    chip.textContent = q;
+    chip.addEventListener('click', () => {
+      document.getElementById('queryInput').value = q;
+      sendMessage();
+      // Scroll input into view on mobile after tap
+      document.getElementById('queryInput').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    strip.appendChild(chip);
+  });
+}
+
+// Initialise chip strip on page load (CSS keeps it hidden on desktop)
+initMobileQuestions();
 
 // ── HITL — modal state ────────────────────────────────────────────────────────
 let _hitlCtx = {};   // { action, docIds, query, badgeEl }

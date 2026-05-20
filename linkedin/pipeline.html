@@ -337,7 +337,7 @@
 <!-- ── Pipeline DAG ── -->
 <div class="pipeline-section">
   <div class="section-title">Pipeline DAG — Live in Orkes UI</div>
-  <div class="section-sub">Every node is a real Orkes SIMPLE task executed by the worker. The FORK_JOIN runs embedding and metadata extraction in parallel.</div>
+  <div class="section-sub">v2: Workerless architecture — Orkes calls Lambda /pipeline/step/* directly via HTTP system tasks. No polling daemon required. Node 1 runs as an Orkes INLINE Graal JS task (zero infra). The FORK_JOIN runs embedding and metadata extraction in parallel.</div>
 
   <div class="dag-container">
     <div class="dag">
@@ -359,9 +359,9 @@
         <div class="dag-node-icon">🔍</div>
         <div class="dag-node-body">
           <div class="dag-node-title">1 · detect_doc_type</div>
-          <div class="dag-node-desc">Classifies document from s3_key path pattern (estatement / dispute / complaint / maintenance). Assigns doc_id. Validates customer_id.</div>
+          <div class="dag-node-desc">Classifies document from s3_key path pattern (estatement / dispute / complaint / maintenance). Assigns doc_id. Runs as Graal JS inside Orkes engine — no Lambda hop, no cost.</div>
         </div>
-        <div class="dag-node-badge">Orkes SIMPLE</div>
+        <div class="dag-node-badge">Orkes INLINE (JS)</div>
       </div>
 
       <div class="dag-connector"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
@@ -371,9 +371,9 @@
         <div class="dag-node-icon">📄</div>
         <div class="dag-node-body">
           <div class="dag-node-title">2 · textract_extract</div>
-          <div class="dag-node-desc">Calls AWS Textract <code>start_document_text_detection</code>. Polls until job completes. Returns raw text + page count. Handles scanned / image PDFs via real OCR.</div>
+          <div class="dag-node-desc">Orkes POSTs to Lambda /pipeline/step/textract → calls AWS Textract <code>start_document_text_detection</code>. Polls until job completes. Returns raw text + page count. Handles scanned / image PDFs via real OCR.</div>
         </div>
-        <div class="dag-node-badge">AWS Textract</div>
+        <div class="dag-node-badge">HTTP → /step/textract</div>
       </div>
 
       <div class="dag-connector"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
@@ -385,7 +385,7 @@
           <div class="dag-node-title">3 · chunk_text</div>
           <div class="dag-node-desc">Splits raw text into 400-token semantic passages with 60-token overlap. Preserves paragraph boundaries. Outputs chunk array with positional metadata.</div>
         </div>
-        <div class="dag-node-badge">Orkes SIMPLE</div>
+        <div class="dag-node-badge">HTTP → /step/chunk</div>
       </div>
 
       <div class="dag-connector"><div class="dag-connector-line"></div><div class="dag-connector-arrow">▼</div><div class="dag-connector-line"></div></div>
@@ -577,13 +577,17 @@
     <div class="demo-step">
       <div class="demo-step-num">1</div>
       <div class="demo-step-body">
-        <div class="demo-step-title">Start the Orkes worker (keep terminal open)</div>
-        <div class="demo-step-desc">The pipeline uses SIMPLE tasks — a worker process must be running to pick them up from the Orkes task queue.</div>
-        <div class="code-block"><span class="dim">cd /Users/dineshsinghpanwar/banking-poc</span>
-<span class="dim">source .venv/bin/activate</span>
-<span class="cmd">python -m workflows.orkes.worker</span>
-<span class="comment"># Wait for: "✅ Worker started"</span></div>
-        <div class="step-note">⚠️ Leave this terminal open for the entire demo</div>
+        <div class="demo-step-title">No worker daemon needed — v2 is workerless ✨</div>
+        <div class="demo-step-desc">
+          Pipeline v2 uses <strong>Orkes HTTP system tasks</strong> — Orkes calls Lambda <code>/pipeline/step/*</code> endpoints directly. No polling daemon, no EC2, no open terminal.
+          Just trigger the workflow and Orkes does the rest.
+        </div>
+        <div class="code-block"><span class="comment"># v1 (SIMPLE tasks) — required daemon:</span>
+<span class="dim">python -m workflows.orkes.worker  ← NOT NEEDED in v2</span>
+
+<span class="comment"># v2 (HTTP system tasks) — just trigger and watch:</span>
+<span class="cmd">curl</span> -s -X POST .../pipeline/ingest  <span class="comment"># that's it</span></div>
+        <div class="step-note green">✓ Orkes calls Lambda directly — detect (INLINE JS) → textract → chunk → [embed ‖ metadata] → JOIN → complete</div>
       </div>
     </div>
 
