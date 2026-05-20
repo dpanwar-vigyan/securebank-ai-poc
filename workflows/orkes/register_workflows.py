@@ -31,7 +31,7 @@ TASK_NAMES = [
     "askmybank_get_statement_s3",
     "askmybank_generate_cover_note",
     "askmybank_log_dispatch_complete",
-    # Pipeline
+    # Pipeline v1 SIMPLE tasks (kept for backward compat — v2 uses HTTP system tasks)
     "askmybank_detect_doc_type",
     "askmybank_textract_extract",
     "askmybank_chunk_text",
@@ -40,6 +40,8 @@ TASK_NAMES = [
     "askmybank_parse_metadata",
     "askmybank_upsert_clickhouse",
     "askmybank_pipeline_complete",
+    # Pipeline v2 INLINE task (registered automatically by Orkes as INLINE type)
+    # "askmybank_detect_doc_type_inline",  ← INLINE/HTTP tasks don't need SIMPLE defs
     # Shared (sleep is a WAIT task — no worker needed, but register it)
     "askmybank_sleep",
 ]

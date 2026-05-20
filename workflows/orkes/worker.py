@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
-AskMyBank — Orkes Conductor Worker
+AskMyBank — Orkes Conductor Worker (OPTIONAL in v2)
 Polls Orkes Cloud for tasks and executes them locally.
 
-Run from banking-poc root (keep this terminal open while demoing):
+ARCHITECTURE NOTE:
+  Workflow v1 (SIMPLE tasks):  worker REQUIRED to poll & execute all 8 pipeline tasks
+  Workflow v2 (HTTP tasks):    worker NOT NEEDED for pipeline — Orkes calls Lambda directly
+
+  The worker is now ONLY needed for tasks that still use SIMPLE type.
+  Pipeline tasks (v2) are executed by Orkes via HTTP → Lambda /pipeline/step/* endpoints.
+
+Run from banking-poc root (only if running v1 SIMPLE task workflows):
     cd /Users/dineshsinghpanwar/banking-poc
     source .venv/bin/activate
     python -m workflows.orkes.worker
-
-The worker handles ALL tasks for both workflows:
-  - askmybank_estatement_duplicate  (eStatement HITL)
-  - askmybank_document_pipeline     (Textract → Embed → CH)
 
 Press Ctrl+C to stop.
 """

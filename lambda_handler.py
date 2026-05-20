@@ -11,6 +11,16 @@ HITL endpoints (Phase 2):
   GET  /hitl/status/{id}  — poll ticket status (chat UI)
   POST /hitl/{id}/decide  — approve / reject a ticket (back-office UI)
   POST /hitl/gap          — log a content gap (catch-all escalation)
+
+Pipeline step endpoints (Phase 3 — called by Orkes HTTP system tasks):
+  POST /pipeline/ingest              — trigger the Orkes pipeline workflow
+  POST /pipeline/step/textract       — Textract PDF → raw text
+  POST /pipeline/step/chunk          — chunk text into passages
+  POST /pipeline/step/embed          — Bedrock Titan embeddings
+  POST /pipeline/step/s3vec          — append vectors + metadata to S3
+  POST /pipeline/step/meta           — parse structured metadata with Nova
+  POST /pipeline/step/clickhouse     — upsert into ClickHouse documents table
+  POST /pipeline/step/complete       — log pipeline completion
 """
 
 import json
@@ -28,6 +38,10 @@ from rag.chain import BankingRAG
 from rag.hitl_client import (
     HITLClient, HITLUnavailableError, HITLNotFoundError,
     TEMPORAL_WORKFLOWS,
+)
+from rag.pipeline_steps import (
+    step_detect, step_textract, step_chunk, step_embed,
+    step_s3vec, step_meta, step_clickhouse, step_complete,
 )
 
 # ── SQS client — HITL case queue for Appian ───────────────────────────────────
@@ -128,6 +142,45 @@ class PipelineIngestRequest(BaseModel):
     doc_type:      str = ""          # Complaint | Dispute | eStatement | AccountMaintenance
     customer_id:   str = ""
     source_system: str = "manual"    # "manual" | "s3_event"
+
+# ── Pipeline step request models (called by Orkes HTTP system tasks v2) ───────
+
+class PipelineTextractRequest(BaseModel):
+    s3_key: str
+    doc_id: str
+
+class PipelineChunkRequest(BaseModel):
+    raw_text:   str
+    doc_id:     str
+    doc_type:   str = ""
+    page_count: int = 1
+
+class PipelineEmbedRequest(BaseModel):
+    chunks: list
+    doc_id: str
+
+class PipelineS3VecRequest(BaseModel):
+    doc_id:     str
+    embeddings: list
+    chunks:     list
+    metadata:   dict = {}
+
+class PipelineMetaRequest(BaseModel):
+    raw_text:    str
+    doc_id:      str
+    doc_type:    str = ""
+    customer_id: str = ""
+
+class PipelineClickhouseRequest(BaseModel):
+    doc_id:   str
+    metadata: dict
+    s3_key:   str
+
+class PipelineCompleteRequest(BaseModel):
+    doc_id:        str
+    vector_count:  int = 0
+    ch_inserted:   int = 0
+    source_system: str = "manual"
 
 # Orkes workflow names — only legal_export (data pipeline) stays on Orkes
 # send_duplicate moved to Temporal (Signal-driven, no polling)
@@ -359,6 +412,110 @@ def log_content_gap(req: ContentGapRequest):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+# ── Pipeline step endpoints — called by Orkes HTTP system tasks (v2) ─────────
+# Auth: same X-Backoffice-Key as back-office HITL endpoints.
+# Orkes includes the header in every HTTP system task call.
+
+def _check_pipeline_auth(x_backoffice_key: str = Header(default="")):
+    if BACKOFFICE_KEY and x_backoffice_key != BACKOFFICE_KEY:
+        raise HTTPException(status_code=401, detail="Invalid X-Backoffice-Key")
+
+
+@app.post("/pipeline/step/textract")
+def pipeline_step_textract(req: PipelineTextractRequest,
+                            x_backoffice_key: str = Header(default="")):
+    """
+    Orkes HTTP task: run AWS Textract on the source PDF.
+    BUG FIX: uses SOURCE_BUCKET (banking-docs-poc-qahftr), not S3_VECTORS_BUCKET.
+    """
+    _check_pipeline_auth(x_backoffice_key)
+    try:
+        return step_textract(s3_key=req.s3_key, doc_id=req.doc_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Textract failed: {exc}")
+
+
+@app.post("/pipeline/step/chunk")
+def pipeline_step_chunk(req: PipelineChunkRequest,
+                        x_backoffice_key: str = Header(default="")):
+    """Orkes HTTP task: split raw text into semantic passages."""
+    _check_pipeline_auth(x_backoffice_key)
+    return step_chunk(
+        raw_text   = req.raw_text,
+        doc_id     = req.doc_id,
+        doc_type   = req.doc_type,
+        page_count = req.page_count,
+    )
+
+
+@app.post("/pipeline/step/embed")
+def pipeline_step_embed(req: PipelineEmbedRequest,
+                        x_backoffice_key: str = Header(default="")):
+    """Orkes HTTP task [FORK A]: generate Bedrock Titan embeddings for each chunk."""
+    _check_pipeline_auth(x_backoffice_key)
+    try:
+        return step_embed(chunks=req.chunks, doc_id=req.doc_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Embedding failed: {exc}")
+
+
+@app.post("/pipeline/step/s3vec")
+def pipeline_step_s3vec(req: PipelineS3VecRequest,
+                        x_backoffice_key: str = Header(default="")):
+    """Orkes HTTP task [FORK A]: append embeddings to S3 vectors.npy + metadata.json."""
+    _check_pipeline_auth(x_backoffice_key)
+    try:
+        return step_s3vec(
+            doc_id     = req.doc_id,
+            embeddings = req.embeddings,
+            chunks     = req.chunks,
+            metadata   = req.metadata,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"S3 vector update failed: {exc}")
+
+
+@app.post("/pipeline/step/meta")
+def pipeline_step_meta(req: PipelineMetaRequest,
+                       x_backoffice_key: str = Header(default="")):
+    """Orkes HTTP task [FORK B]: parse structured metadata using Nova Lite."""
+    _check_pipeline_auth(x_backoffice_key)
+    return step_meta(
+        raw_text    = req.raw_text,
+        doc_id      = req.doc_id,
+        doc_type    = req.doc_type,
+        customer_id = req.customer_id,
+    )
+
+
+@app.post("/pipeline/step/clickhouse")
+def pipeline_step_clickhouse(req: PipelineClickhouseRequest,
+                              x_backoffice_key: str = Header(default="")):
+    """Orkes HTTP task [FORK B]: upsert document metadata into ClickHouse."""
+    _check_pipeline_auth(x_backoffice_key)
+    try:
+        return step_clickhouse(
+            doc_id   = req.doc_id,
+            metadata = req.metadata,
+            s3_key   = req.s3_key,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ClickHouse upsert failed: {exc}")
+
+
+@app.post("/pipeline/step/complete")
+def pipeline_step_complete(req: PipelineCompleteRequest,
+                           x_backoffice_key: str = Header(default="")):
+    """Orkes HTTP task: log pipeline completion and return summary."""
+    _check_pipeline_auth(x_backoffice_key)
+    return step_complete(
+        doc_id        = req.doc_id,
+        vector_count  = req.vector_count,
+        ch_inserted   = req.ch_inserted,
+        source_system = req.source_system,
+    )
+
+
 # ── Document ingestion pipeline trigger ───────────────────────────────────────
 @app.post("/pipeline/ingest")
 def trigger_pipeline(req: PipelineIngestRequest):
@@ -373,11 +530,18 @@ def trigger_pipeline(req: PipelineIngestRequest):
     if not req.s3_key:
         raise HTTPException(status_code=400, detail="s3_key is required")
 
+    api_base = os.getenv("API_BASE_URL",
+                         "https://r6v15i892m.execute-api.us-east-1.amazonaws.com")
+
     wf_input = {
         "s3_key":        req.s3_key,
         "doc_type":      req.doc_type,
         "customer_id":   req.customer_id,
         "source_system": req.source_system,
+        # V2: Orkes HTTP system tasks call Lambda directly — these are injected
+        # into every HTTP task's URI and auth header at workflow runtime.
+        "api_base_url":  api_base,
+        "backoffice_key": BACKOFFICE_KEY,
     }
 
     wf_id = hitl.trigger_orkes_workflow(
