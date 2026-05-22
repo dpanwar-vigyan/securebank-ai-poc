@@ -17,9 +17,9 @@ V2 (WORKFLOW_VERSION=2): HTTP system tasks + INLINE task.
 Architecture:
   Orkes Cloud → HTTPS POST → API Gateway → Lambda → (Textract/Bedrock/S3/ClickHouse)
 
-DAG (identical visual shape to V1 — same Orkes UI appearance):
+DAG (identical visual shape to V1/V2 — same Orkes UI appearance):
 
-  detect_doc_type   ← INLINE Graal JS   (classify s3_key, gen doc_id — zero infra)
+  detect_doc_type   ← HTTP → /pipeline/step/detect   (classify s3_key, gen doc_id — ~1ms)
        │
   textract_extract  ← HTTP → /pipeline/step/textract    (600s: Textract async)
        │
@@ -48,7 +48,7 @@ Inputs (passed by /pipeline/ingest Lambda):
 """
 
 WORKFLOW_NAME    = "askmybank_document_pipeline"
-WORKFLOW_VERSION = 2   # bump from 1 (SIMPLE tasks) → 2 (HTTP system tasks)
+WORKFLOW_VERSION = 3   # bump from 2 (INLINE Graal JS detect) → 3 (all HTTP tasks, no INLINE)
 
 
 # ── Helper: build an HTTP system task definition ──────────────────────────────
@@ -80,69 +80,22 @@ def _http_task(name: str, ref: str, path: str, body: dict, timeout_s: int = 30) 
     }
 
 
-# ── INLINE task: detect_doc_type (Graal JS — zero infrastructure) ─────────────
-# Runs inside the Orkes engine — no Lambda call, no worker, no AWS cost.
-# Classifies doc_type from s3_key suffix, generates doc_id.
-# Output is at: ${detect_ref.output.result.<field>}
+# ── HTTP task: detect_doc_type (Lambda /pipeline/step/detect) ─────────────────
+# v3: replaced INLINE Graal JS with a plain HTTP task — consistent with all other
+# steps, easier to debug, same ~1ms cost (no Textract/Bedrock — pure Python logic).
+# Output is at: ${detect_ref.output.response.body.<field>}  (standard HTTP task path)
 
-_DETECT_EXPRESSION = r"""
-(function() {
-  var s3_key     = $.s3_key     || '';
-  var doc_type   = $.doc_type   || '';
-  var customer_id = $.customer_id || '';
-  var key_lower  = s3_key.toLowerCase();
-
-  if (!doc_type) {
-    if (key_lower.indexOf('dispute') !== -1 || key_lower.indexOf('dsp') !== -1) {
-      doc_type = 'Dispute';
-    } else if (key_lower.indexOf('complaint') !== -1 || key_lower.indexOf('cmp') !== -1) {
-      doc_type = 'Complaint';
-    } else if (key_lower.indexOf('statement') !== -1 || key_lower.indexOf('stmt') !== -1) {
-      doc_type = 'eStatement';
-    } else if (key_lower.indexOf('maintenance') !== -1 || key_lower.indexOf('mnt') !== -1) {
-      doc_type = 'AccountMaintenance';
-    } else {
-      doc_type = 'Complaint';
-    }
-  }
-
-  var prefixMap = {
-    'Dispute': 'DSP', 'Complaint': 'CMP',
-    'eStatement': 'STMT', 'AccountMaintenance': 'MNT'
-  };
-  var prefix = prefixMap[doc_type] || 'DOC';
-  var suffix = Math.floor(Math.random() * 0xFFFFF)
-                   .toString(16).toUpperCase().padStart(5, '0');
-  var doc_id = prefix + suffix;
-
-  return {
-    doc_id:    doc_id,
-    doc_type:  doc_type,
-    s3_key:    s3_key,
-    metadata: {
-      doc_id:      doc_id,
-      doc_type:    doc_type,
-      customer_id: customer_id,
-      s3_path:     s3_key,
-      ingested_at: new Date().toISOString()
-    }
-  };
-})();
-""".strip()
-
-_DETECT_TASK = {
-    "name":              "askmybank_detect_doc_type_inline",
-    "taskReferenceName": "detect_ref",
-    "type":              "INLINE",
-    "inputParameters": {
-        "evaluatorType": "graaljs",
-        "expression":    _DETECT_EXPRESSION,
-        # Map workflow inputs into the JS $ scope
-        "s3_key":        "${workflow.input.s3_key}",
-        "doc_type":      "${workflow.input.doc_type}",
-        "customer_id":   "${workflow.input.customer_id}",
+_DETECT_TASK = _http_task(
+    name      = "askmybank_detect_doc_type",
+    ref       = "detect_ref",
+    path      = "/pipeline/step/detect",
+    body      = {
+        "s3_key":      "${workflow.input.s3_key}",
+        "doc_type":    "${workflow.input.doc_type}",
+        "customer_id": "${workflow.input.customer_id}",
     },
-}
+    timeout_s = 10,    # classify + gen doc_id — should be <100ms
+)
 
 
 # ── Workflow definition ───────────────────────────────────────────────────────
@@ -151,10 +104,10 @@ WORKFLOW_DEF = {
     "name":        WORKFLOW_NAME,
     "version":     WORKFLOW_VERSION,
     "description": (
-        "AskMyBank v2 — Workerless pipeline: "
-        "INLINE detect → HTTP Textract → chunk → FORK_JOIN(embed+s3vec ‖ meta+clickhouse) "
+        "AskMyBank v3 — All-HTTP pipeline, no worker, no INLINE tasks: "
+        "HTTP detect → HTTP Textract → chunk → FORK_JOIN(embed+s3vec ‖ meta+clickhouse) "
         "→ WAIT spot-check → complete. "
-        "No worker daemon needed — Orkes calls Lambda directly via HTTP system tasks."
+        "All steps are HTTP system tasks calling Lambda /pipeline/step/* directly."
     ),
     "timeoutSeconds": 3600,          # 1h — Textract jobs can be slow for large PDFs
     "timeoutPolicy":  "TIME_OUT_WF",
@@ -163,7 +116,7 @@ WORKFLOW_DEF = {
         "api_base_url", "backoffice_key",
     ],
     "outputParameters": {
-        "doc_id":          "${detect_ref.output.result.doc_id}",
+        "doc_id":          "${detect_ref.output.response.body.doc_id}",
         "vector_count":    "${complete_ref.output.response.body.vector_count}",
         "pipeline_status": "${complete_ref.output.response.body.pipeline_status}",
     },
@@ -181,7 +134,7 @@ WORKFLOW_DEF = {
             path      = "/pipeline/step/textract",
             body      = {
                 "s3_key": "${workflow.input.s3_key}",
-                "doc_id": "${detect_ref.output.result.doc_id}",
+                "doc_id": "${detect_ref.output.response.body.doc_id}",
             },
             timeout_s = 600,    # 10 min — Textract async poll up to 2 min + buffer
         ),
@@ -193,8 +146,8 @@ WORKFLOW_DEF = {
             path = "/pipeline/step/chunk",
             body = {
                 "raw_text":   "${textract_ref.output.response.body.raw_text}",
-                "doc_id":     "${detect_ref.output.result.doc_id}",
-                "doc_type":   "${detect_ref.output.result.doc_type}",
+                "doc_id":     "${detect_ref.output.response.body.doc_id}",
+                "doc_type":   "${detect_ref.output.response.body.doc_type}",
                 "page_count": "${textract_ref.output.response.body.page_count}",
             },
         ),
@@ -214,7 +167,7 @@ WORKFLOW_DEF = {
                         path = "/pipeline/step/embed",
                         body = {
                             "chunks": "${chunk_ref.output.response.body.chunks}",
-                            "doc_id": "${detect_ref.output.result.doc_id}",
+                            "doc_id": "${detect_ref.output.response.body.doc_id}",
                         },
                         timeout_s = 120,
                     ),
@@ -223,10 +176,10 @@ WORKFLOW_DEF = {
                         ref  = "s3vec_ref",
                         path = "/pipeline/step/s3vec",
                         body = {
-                            "doc_id":     "${detect_ref.output.result.doc_id}",
+                            "doc_id":     "${detect_ref.output.response.body.doc_id}",
                             "embeddings": "${embed_ref.output.response.body.embeddings}",
                             "chunks":     "${chunk_ref.output.response.body.chunks}",
-                            "metadata":   "${detect_ref.output.result.metadata}",
+                            "metadata":   "${detect_ref.output.response.body.metadata}",
                         },
                         timeout_s = 60,
                     ),
@@ -240,8 +193,8 @@ WORKFLOW_DEF = {
                         path = "/pipeline/step/meta",
                         body = {
                             "raw_text":    "${textract_ref.output.response.body.raw_text}",
-                            "doc_id":      "${detect_ref.output.result.doc_id}",
-                            "doc_type":    "${detect_ref.output.result.doc_type}",
+                            "doc_id":      "${detect_ref.output.response.body.doc_id}",
+                            "doc_type":    "${detect_ref.output.response.body.doc_type}",
                             "customer_id": "${workflow.input.customer_id}",
                         },
                         timeout_s = 60,
@@ -251,7 +204,7 @@ WORKFLOW_DEF = {
                         ref  = "ch_ref",
                         path = "/pipeline/step/clickhouse",
                         body = {
-                            "doc_id":   "${detect_ref.output.result.doc_id}",
+                            "doc_id":   "${detect_ref.output.response.body.doc_id}",
                             "metadata": "${meta_ref.output.response.body.structured_metadata}",
                             "s3_key":   "${workflow.input.s3_key}",
                         },
@@ -287,7 +240,7 @@ WORKFLOW_DEF = {
             ref  = "complete_ref",
             path = "/pipeline/step/complete",
             body = {
-                "doc_id":        "${detect_ref.output.result.doc_id}",
+                "doc_id":        "${detect_ref.output.response.body.doc_id}",
                 "vector_count":  "${s3vec_ref.output.response.body.vectors_added}",
                 "ch_inserted":   "${ch_ref.output.response.body.rows_inserted}",
                 "source_system": "${workflow.input.source_system}",
