@@ -12,15 +12,22 @@ HITL endpoints (Phase 2):
   POST /hitl/{id}/decide  — approve / reject a ticket (back-office UI)
   POST /hitl/gap          — log a content gap (catch-all escalation)
 
-Pipeline step endpoints (Phase 3 — called by Orkes HTTP system tasks):
-  POST /pipeline/ingest              — trigger the Orkes pipeline workflow
-  POST /pipeline/step/textract       — Textract PDF → raw text
-  POST /pipeline/step/chunk          — chunk text into passages
-  POST /pipeline/step/embed          — Bedrock Titan embeddings
-  POST /pipeline/step/s3vec          — append vectors + metadata to S3
-  POST /pipeline/step/meta           — parse structured metadata with Nova
-  POST /pipeline/step/clickhouse     — upsert into ClickHouse documents table
-  POST /pipeline/step/complete       — log pipeline completion
+Pipeline endpoints (Phase 3 — queued, scheduled, controlled throughput):
+  POST /pipeline/ingest          — enqueue a document (writes to SQS intake queue)
+  POST /pipeline/drain           — pop a batch from queue → start Orkes workflows
+                                   also triggered by EventBridge every 30 min
+  GET  /pipeline/queue/status    — queue depth, DLQ depth, batch size
+  POST /pipeline/step/textract   — Orkes HTTP task: Textract PDF → raw text
+  POST /pipeline/step/chunk      — Orkes HTTP task: chunk text into passages
+  POST /pipeline/step/embed      — Orkes HTTP task: Bedrock embeddings
+  POST /pipeline/step/s3vec      — Orkes HTTP task: append to S3 vectors (idempotent)
+  POST /pipeline/step/meta       — Orkes HTTP task: parse structured metadata
+  POST /pipeline/step/clickhouse — Orkes HTTP task: upsert ClickHouse (idempotent)
+  POST /pipeline/step/complete   — Orkes HTTP task: log completion
+
+Direct Lambda invocation (EventBridge):
+  {"source": "warming"}        — keep-warm ping (existing)
+  {"source": "pipeline_drain"} — scheduled drain (every 30 min)
 """
 
 import json
@@ -44,9 +51,11 @@ from rag.pipeline_steps import (
     step_s3vec, step_meta, step_clickhouse, step_complete,
 )
 
-# ── SQS client — HITL case queue for Appian ───────────────────────────────────
-_sqs           = boto3.client("sqs", region_name=os.getenv("AWS_REGION", "us-east-1"))
-HITL_QUEUE_URL = os.getenv("HITL_SQS_QUEUE_URL", "")
+# ── SQS client (shared — HITL queue + Pipeline intake queue) ─────────────────
+_sqs              = boto3.client("sqs", region_name=os.getenv("AWS_REGION", "us-east-1"))
+HITL_QUEUE_URL    = os.getenv("HITL_SQS_QUEUE_URL", "")
+PIPELINE_QUEUE_URL = os.getenv("PIPELINE_QUEUE_URL", "")
+PIPELINE_BATCH_SIZE = int(os.getenv("PIPELINE_BATCH_SIZE", "20"))
 
 def _publish_to_sqs(ticket: dict, req_extras: dict) -> str:
     """
@@ -90,6 +99,131 @@ def _publish_to_sqs(ticket: dict, req_extras: dict) -> str:
     except ClientError as exc:
         # Non-fatal — ticket is already in ClickHouse + Orkes running
         print(f"SQS publish failed ({exc}) — ticket still active in ClickHouse/Orkes")
+
+
+# ── Pipeline failure → HITL ops ticket ───────────────────────────────────────
+def _pipeline_failure_hitl(step: str, doc_id: str, s3_key: str, error: str) -> None:
+    """
+    Raise a HITL ops ticket when a pipeline step fails all retries.
+    Ops team sees it in review.html, inspects the Orkes execution, fixes root
+    cause, then re-triggers POST /pipeline/ingest for the same s3_key.
+
+    Non-fatal — if the HITL ticket itself fails, we still surface the error
+    to Orkes (via the HTTP 500 response) so it shows FAILED in the Orkes UI.
+    """
+    try:
+        api_base = os.getenv("API_BASE_URL",
+                             "https://r6v15i892m.execute-api.us-east-1.amazonaws.com")
+        hitl.log_content_gap(
+            original_query = f"[PIPELINE FAILURE] step={step} doc={doc_id} s3={s3_key}",
+            ai_response    = f"Error: {error}",
+            user_feedback  = (
+                f"Auto-raised by pipeline step '{step}'. "
+                f"Fix root cause then re-ingest:\n"
+                f"  curl -X POST {api_base}/pipeline/ingest \\\n"
+                f"    -H 'Content-Type: application/json' \\\n"
+                f"    -d '{{\"s3_key\":\"{s3_key}\",\"source_system\":\"retry\"}}'"
+            ),
+        )
+        print(f"[pipeline_failure_hitl] Ops ticket raised for {step}/{doc_id}")
+    except Exception as exc:
+        print(f"[pipeline_failure_hitl] Failed to raise ticket: {exc}")
+
+
+# ── Pipeline drain — shared logic (HTTP endpoint + EventBridge direct invoke) ─
+def _run_pipeline_drain() -> dict:
+    """
+    Pop up to PIPELINE_BATCH_SIZE messages from PipelineQueue and start
+    one Orkes workflow per document. Idempotency is enforced inside each
+    step endpoint so re-draining the same message is safe.
+
+    Called from:
+      POST /pipeline/drain      — manual trigger (demo, ops)
+      EventBridge pipeline_drain — every 30 minutes (scheduled)
+    """
+    if not PIPELINE_QUEUE_URL:
+        return {"error": "PIPELINE_QUEUE_URL not configured", "processed": 0}
+
+    api_base        = os.getenv("API_BASE_URL",
+                                "https://r6v15i892m.execute-api.us-east-1.amazonaws.com")
+    remaining_batch = PIPELINE_BATCH_SIZE
+    started         = []
+    failed          = []
+
+    # SQS returns max 10 per call — loop until we have the full batch or queue empty
+    while remaining_batch > 0:
+        fetch = min(remaining_batch, 10)
+        resp  = _sqs.receive_message(
+            QueueUrl            = PIPELINE_QUEUE_URL,
+            MaxNumberOfMessages = fetch,
+            WaitTimeSeconds     = 1,     # short poll — don't hold the Lambda
+            VisibilityTimeout   = 600,   # 10 min — workflow start + first step
+        )
+        messages = resp.get("Messages", [])
+        if not messages:
+            break   # queue empty
+
+        for msg in messages:
+            try:
+                body = json.loads(msg["Body"])
+                s3_key = body.get("s3_key", "")
+
+                wf_input = {
+                    **body,
+                    "api_base_url":  api_base,
+                    "backoffice_key": BACKOFFICE_KEY,
+                }
+                wf_id = hitl.trigger_orkes_workflow(
+                    workflow_name  = "askmybank_document_pipeline",
+                    workflow_input = wf_input,
+                    correlation_id = f"pipeline-{s3_key}",
+                )
+
+                if wf_id:
+                    # Workflow started — delete the message so it's not re-processed
+                    _sqs.delete_message(
+                        QueueUrl      = PIPELINE_QUEUE_URL,
+                        ReceiptHandle = msg["ReceiptHandle"],
+                    )
+                    started.append({
+                        "s3_key":      s3_key,
+                        "workflow_id": wf_id,
+                        "orkes_ui":    f"https://developer.orkescloud.com/execution/{wf_id}",
+                    })
+                    print(f"[drain] ✅ Started {wf_id} for {s3_key}")
+                else:
+                    # Orkes unavailable — leave message visible so it retries
+                    failed.append({"s3_key": s3_key, "reason": "orkes_unavailable"})
+                    print(f"[drain] ⚠️  Orkes unavailable for {s3_key} — message left in queue")
+
+            except Exception as exc:
+                failed.append({"s3_key": body.get("s3_key", "?"), "reason": str(exc)})
+                print(f"[drain] ❌ {exc}")
+
+        remaining_batch -= len(messages)
+
+    # Get current queue depth for visibility
+    try:
+        attrs = _sqs.get_queue_attributes(
+            QueueUrl       = PIPELINE_QUEUE_URL,
+            AttributeNames = ["ApproximateNumberOfMessages",
+                              "ApproximateNumberOfMessagesNotVisible"],
+        )
+        queue_depth    = int(attrs["Attributes"].get("ApproximateNumberOfMessages", 0))
+        in_flight      = int(attrs["Attributes"].get("ApproximateNumberOfMessagesNotVisible", 0))
+    except Exception:
+        queue_depth = in_flight = -1
+
+    return {
+        "batch_size":      PIPELINE_BATCH_SIZE,
+        "started":         len(started),
+        "failed":          len(failed),
+        "queue_remaining": queue_depth,
+        "in_flight":       in_flight,
+        "workflows":       started,
+        "errors":          failed,
+    }
+
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="AskMyBank API", version="2.0.0")
@@ -424,14 +558,12 @@ def _check_pipeline_auth(x_backoffice_key: str = Header(default="")):
 @app.post("/pipeline/step/textract")
 def pipeline_step_textract(req: PipelineTextractRequest,
                             x_backoffice_key: str = Header(default="")):
-    """
-    Orkes HTTP task: run AWS Textract on the source PDF.
-    BUG FIX: uses SOURCE_BUCKET (banking-docs-poc-qahftr), not S3_VECTORS_BUCKET.
-    """
+    """Orkes HTTP task: Textract PDF → raw text. Uses SOURCE_BUCKET (not vectors bucket)."""
     _check_pipeline_auth(x_backoffice_key)
     try:
         return step_textract(s3_key=req.s3_key, doc_id=req.doc_id)
     except Exception as exc:
+        _pipeline_failure_hitl("textract", req.doc_id, req.s3_key, str(exc))
         raise HTTPException(status_code=500, detail=f"Textract failed: {exc}")
 
 
@@ -440,29 +572,38 @@ def pipeline_step_chunk(req: PipelineChunkRequest,
                         x_backoffice_key: str = Header(default="")):
     """Orkes HTTP task: split raw text into semantic passages."""
     _check_pipeline_auth(x_backoffice_key)
-    return step_chunk(
-        raw_text   = req.raw_text,
-        doc_id     = req.doc_id,
-        doc_type   = req.doc_type,
-        page_count = req.page_count,
-    )
+    try:
+        return step_chunk(
+            raw_text   = req.raw_text,
+            doc_id     = req.doc_id,
+            doc_type   = req.doc_type,
+            page_count = req.page_count,
+        )
+    except Exception as exc:
+        _pipeline_failure_hitl("chunk", req.doc_id, req.s3_key if hasattr(req,"s3_key") else "", str(exc))
+        raise HTTPException(status_code=500, detail=f"Chunk failed: {exc}")
 
 
 @app.post("/pipeline/step/embed")
 def pipeline_step_embed(req: PipelineEmbedRequest,
                         x_backoffice_key: str = Header(default="")):
-    """Orkes HTTP task [FORK A]: generate Bedrock Titan embeddings for each chunk."""
+    """Orkes HTTP task [FORK A]: Bedrock Titan embeddings for each chunk."""
     _check_pipeline_auth(x_backoffice_key)
     try:
         return step_embed(chunks=req.chunks, doc_id=req.doc_id)
     except Exception as exc:
+        _pipeline_failure_hitl("embed", req.doc_id, "", str(exc))
         raise HTTPException(status_code=500, detail=f"Embedding failed: {exc}")
 
 
 @app.post("/pipeline/step/s3vec")
 def pipeline_step_s3vec(req: PipelineS3VecRequest,
                         x_backoffice_key: str = Header(default="")):
-    """Orkes HTTP task [FORK A]: append embeddings to S3 vectors.npy + metadata.json."""
+    """
+    Orkes HTTP task [FORK A]: append embeddings to S3 vectors.npy + metadata.json.
+    Idempotent — if doc_id already indexed, skips append and returns success.
+    Safe to re-run after a failure without creating duplicate vectors.
+    """
     _check_pipeline_auth(x_backoffice_key)
     try:
         return step_s3vec(
@@ -472,26 +613,35 @@ def pipeline_step_s3vec(req: PipelineS3VecRequest,
             metadata   = req.metadata,
         )
     except Exception as exc:
+        _pipeline_failure_hitl("s3vec", req.doc_id, "", str(exc))
         raise HTTPException(status_code=500, detail=f"S3 vector update failed: {exc}")
 
 
 @app.post("/pipeline/step/meta")
 def pipeline_step_meta(req: PipelineMetaRequest,
                        x_backoffice_key: str = Header(default="")):
-    """Orkes HTTP task [FORK B]: parse structured metadata using Nova Lite."""
+    """Orkes HTTP task [FORK B]: parse structured metadata with Nova Lite."""
     _check_pipeline_auth(x_backoffice_key)
-    return step_meta(
-        raw_text    = req.raw_text,
-        doc_id      = req.doc_id,
-        doc_type    = req.doc_type,
-        customer_id = req.customer_id,
-    )
+    try:
+        return step_meta(
+            raw_text    = req.raw_text,
+            doc_id      = req.doc_id,
+            doc_type    = req.doc_type,
+            customer_id = req.customer_id,
+        )
+    except Exception as exc:
+        _pipeline_failure_hitl("meta", req.doc_id, "", str(exc))
+        raise HTTPException(status_code=500, detail=f"Metadata parsing failed: {exc}")
 
 
 @app.post("/pipeline/step/clickhouse")
 def pipeline_step_clickhouse(req: PipelineClickhouseRequest,
                               x_backoffice_key: str = Header(default="")):
-    """Orkes HTTP task [FORK B]: upsert document metadata into ClickHouse."""
+    """
+    Orkes HTTP task [FORK B]: upsert document metadata into ClickHouse.
+    Idempotent — checks for existing doc_id before inserting.
+    ReplacingMergeTree handles eventual deduplication at the engine level.
+    """
     _check_pipeline_auth(x_backoffice_key)
     try:
         return step_clickhouse(
@@ -500,13 +650,14 @@ def pipeline_step_clickhouse(req: PipelineClickhouseRequest,
             s3_key   = req.s3_key,
         )
     except Exception as exc:
+        _pipeline_failure_hitl("clickhouse", req.doc_id, req.s3_key, str(exc))
         raise HTTPException(status_code=500, detail=f"ClickHouse upsert failed: {exc}")
 
 
 @app.post("/pipeline/step/complete")
 def pipeline_step_complete(req: PipelineCompleteRequest,
                            x_backoffice_key: str = Header(default="")):
-    """Orkes HTTP task: log pipeline completion and return summary."""
+    """Orkes HTTP task: log pipeline completion. Straight-through — no HITL on success."""
     _check_pipeline_auth(x_backoffice_key)
     return step_complete(
         doc_id        = req.doc_id,
@@ -520,49 +671,156 @@ def pipeline_step_complete(req: PipelineCompleteRequest,
 @app.post("/pipeline/ingest")
 def trigger_pipeline(req: PipelineIngestRequest):
     """
-    Trigger the Orkes document ingestion pipeline workflow.
-    Starts: Textract → chunk → embed (parallel) → S3 vectors + ClickHouse.
+    Enqueue a document for AI ingestion.
+
+    When PIPELINE_QUEUE_URL is set (production): writes to SQS intake queue.
+    The scheduled drainer (EventBridge, every 30 min) pops the queue and starts
+    Orkes workflows in controlled tranches. Queue depth = live backlog.
+
+    When PIPELINE_QUEUE_URL is not set (local dev fallback): starts Orkes
+    workflow directly (original v1 behaviour — no queue, no tranche control).
 
     Example:
         POST /pipeline/ingest
-        {"s3_key": "raw-docs/cmp_new.pdf", "doc_type": "Complaint", "customer_id": "CUST00099"}
+        {"s3_key": "raw-docs/CMP-DEMO-001.pdf", "doc_type": "Complaint"}
     """
     if not req.s3_key:
         raise HTTPException(status_code=400, detail="s3_key is required")
 
-    api_base = os.getenv("API_BASE_URL",
-                         "https://r6v15i892m.execute-api.us-east-1.amazonaws.com")
-
-    wf_input = {
+    import datetime
+    message = {
         "s3_key":        req.s3_key,
         "doc_type":      req.doc_type,
         "customer_id":   req.customer_id,
         "source_system": req.source_system,
-        # V2: Orkes HTTP system tasks call Lambda directly — these are injected
-        # into every HTTP task's URI and auth header at workflow runtime.
+        "received_at":   datetime.datetime.utcnow().isoformat() + "Z",
+    }
+
+    # ── Production path: write to SQS, drain on schedule ─────────────────────
+    if PIPELINE_QUEUE_URL:
+        try:
+            resp = _sqs.send_message(
+                QueueUrl    = PIPELINE_QUEUE_URL,
+                MessageBody = json.dumps(message),
+                MessageAttributes={
+                    "doc_type": {"StringValue": req.doc_type or "unknown", "DataType": "String"},
+                    "source":   {"StringValue": req.source_system,         "DataType": "String"},
+                },
+            )
+            msg_id = resp.get("MessageId", "")
+            print(f"[ingest] Queued {req.s3_key} → SQS MessageId={msg_id}")
+
+            # Queue depth for caller visibility
+            try:
+                attrs = _sqs.get_queue_attributes(
+                    QueueUrl       = PIPELINE_QUEUE_URL,
+                    AttributeNames = ["ApproximateNumberOfMessages"],
+                )
+                depth = int(attrs["Attributes"].get("ApproximateNumberOfMessages", 0))
+            except Exception:
+                depth = -1
+
+            return {
+                "status":         "queued",
+                "message_id":     msg_id,
+                "s3_key":         req.s3_key,
+                "doc_type":       req.doc_type,
+                "queue_depth":    depth,
+                "note":           f"Document queued. Drainer runs every 30 min "
+                                  f"(batch={PIPELINE_BATCH_SIZE}). "
+                                  f"Trigger manually: POST /pipeline/drain",
+            }
+        except ClientError as exc:
+            raise HTTPException(status_code=503, detail=f"SQS enqueue failed: {exc}")
+
+    # ── Dev fallback: direct Orkes start (no queue) ───────────────────────────
+    api_base = os.getenv("API_BASE_URL",
+                         "https://r6v15i892m.execute-api.us-east-1.amazonaws.com")
+    wf_input = {
+        **message,
         "api_base_url":  api_base,
         "backoffice_key": BACKOFFICE_KEY,
     }
-
     wf_id = hitl.trigger_orkes_workflow(
-        workflow_name   = "askmybank_document_pipeline",
-        workflow_input  = wf_input,
-        correlation_id  = f"pipeline-{req.s3_key}",
+        workflow_name  = "askmybank_document_pipeline",
+        workflow_input = wf_input,
+        correlation_id = f"pipeline-{req.s3_key}",
+    )
+    if not wf_id:
+        raise HTTPException(status_code=503,
+                            detail="No queue configured and Orkes unavailable")
+    return {
+        "status":       "started_direct",
+        "workflow_id":  wf_id,
+        "s3_key":       req.s3_key,
+        "orkes_ui_url": f"https://developer.orkescloud.com/execution/{wf_id}",
+        "note":         "Direct start (no queue — dev mode). Set PIPELINE_QUEUE_URL for production.",
+    }
+
+
+@app.post("/pipeline/drain")
+def drain_pipeline(x_backoffice_key: str = Header(default="")):
+    """
+    Manually trigger a batch drain of the pipeline queue.
+    Also called automatically by EventBridge every 30 minutes.
+
+    Useful for:
+      - Demo: trigger immediately after ingesting docs to show live DAG
+      - Ops: clear backlog faster than the schedule allows
+      - Testing: drain without waiting for EventBridge
+
+    Returns workflow IDs + Orkes UI links for all started workflows.
+    """
+    _check_pipeline_auth(x_backoffice_key)
+    result = _run_pipeline_drain()
+    if result.get("error"):
+        raise HTTPException(status_code=503, detail=result["error"])
+    return result
+
+
+@app.get("/pipeline/queue/status")
+def pipeline_queue_status(x_backoffice_key: str = Header(default="")):
+    """
+    Live queue depth — how many documents are waiting to be ingested.
+    Shows main queue + DLQ (docs that failed to start 3 times).
+    """
+    _check_pipeline_auth(x_backoffice_key)
+
+    if not PIPELINE_QUEUE_URL:
+        return {"configured": False, "note": "PIPELINE_QUEUE_URL not set"}
+
+    pipeline_dlq_url = PIPELINE_QUEUE_URL.replace(
+        f"askmybank-pipeline-", "askmybank-pipeline-dlq-"
     )
 
-    if not wf_id:
-        raise HTTPException(
-            status_code=503,
-            detail="Orkes not configured or unavailable — check ORKES_* env vars",
-        )
+    def _depth(url):
+        try:
+            attrs = _sqs.get_queue_attributes(
+                QueueUrl       = url,
+                AttributeNames = ["ApproximateNumberOfMessages",
+                                  "ApproximateNumberOfMessagesNotVisible"],
+            )
+            return {
+                "waiting":   int(attrs["Attributes"].get("ApproximateNumberOfMessages", 0)),
+                "in_flight": int(attrs["Attributes"].get("ApproximateNumberOfMessagesNotVisible", 0)),
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    pipeline_stats = _depth(PIPELINE_QUEUE_URL)
+    dlq_stats      = _depth(pipeline_dlq_url)
+
+    waiting = pipeline_stats.get("waiting", 0)
+    eta_hours = round((waiting / PIPELINE_BATCH_SIZE) * 0.5, 1) if waiting > 0 else 0
 
     return {
-        "workflow_id":   wf_id,
-        "workflow_name": "askmybank_document_pipeline",
-        "s3_key":        req.s3_key,
-        "doc_type":      req.doc_type,
-        "orkes_ui_url":  f"https://developer.orkescloud.com/execution/{wf_id}",
-        "status":        "started",
+        "configured":   True,
+        "batch_size":   PIPELINE_BATCH_SIZE,
+        "schedule":     "every 30 minutes",
+        "pipeline_queue": pipeline_stats,
+        "dead_letter_queue": dlq_stats,
+        "eta_hours":    eta_hours,
+        "note":         f"{waiting} docs waiting · ETA ~{eta_hours}h at current batch size" if waiting else "Queue empty",
     }
 
 
@@ -572,10 +830,22 @@ def trigger_pipeline(req: PipelineIngestRequest):
 _mangum = Mangum(app, lifespan="off")
 
 def handler(event, context):
-    # EventBridge sends {"source": "warming", "query": ""} directly to Lambda
-    # — not through API Gateway, so Mangum can't parse it. Handle here.
-    if isinstance(event, dict) and event.get("source") == "warming":
-        print("EventBridge warming ping — Lambda is warm")
-        return {"statusCode": 200, "body": '{"status":"warm"}'}
+    # EventBridge direct invocations — not routed through API Gateway / Mangum
+    if isinstance(event, dict):
+        src = event.get("source", "")
+
+        if src == "warming":
+            # Keep-warm ping — every 5 min
+            print("EventBridge warming ping — Lambda is warm")
+            return {"statusCode": 200, "body": '{"status":"warm"}'}
+
+        if src == "pipeline_drain":
+            # Scheduled drain — every 30 min (EventBridge PipelineDrainRule)
+            print(f"EventBridge pipeline_drain — popping up to {PIPELINE_BATCH_SIZE} docs")
+            result = _run_pipeline_drain()
+            print(f"[drain] complete: {result['started']} started, "
+                  f"{result['queue_remaining']} remaining in queue")
+            return {"statusCode": 200, "body": json.dumps(result)}
+
     # All other events are HTTP requests via API Gateway → Mangum → FastAPI
     return _mangum(event, context)

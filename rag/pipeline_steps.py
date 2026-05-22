@@ -213,21 +213,37 @@ def step_embed(chunks: list, doc_id: str) -> dict:
 def step_s3vec(doc_id: str, embeddings: list, chunks: list, metadata: dict) -> dict:
     s3 = _s3()
 
-    # Download existing vectors.npy
-    try:
-        obj      = s3.get_object(Bucket=S3_VECTORS_BUCKET, Key="vectors.npy")
-        existing = np.load(io.BytesIO(obj["Body"].read()))
-    except Exception:
-        existing = np.empty((0, 256), dtype=np.float32)
-
-    # Download existing metadata.json
+    # ── Download existing metadata.json first (needed for idempotency check) ──
     try:
         obj           = s3.get_object(Bucket=S3_VECTORS_BUCKET, Key="metadata.json")
         existing_meta = json.loads(obj["Body"].read())
     except Exception:
         existing_meta = []
 
-    # Append new vectors
+    # ── IDEMPOTENCY GUARD ─────────────────────────────────────────────────────
+    # If this doc_id already has vectors (e.g. from a previous run that failed
+    # at a later step and was re-triggered), skip the append entirely.
+    # This prevents duplicate vectors corrupting the search index on retry.
+    already_indexed = [m for m in existing_meta if m.get("doc_id") == doc_id]
+    if already_indexed:
+        total = len(existing_meta)
+        print(f"[s3vec] ⚡ {doc_id} already has {len(already_indexed)} chunks indexed — skipping (idempotent)")
+        return {
+            "vectors_added": 0,
+            "total_vectors": total,
+            "doc_id":        doc_id,
+            "skipped":       True,
+            "reason":        "already_indexed",
+        }
+
+    # ── Download existing vectors.npy ─────────────────────────────────────────
+    try:
+        obj      = s3.get_object(Bucket=S3_VECTORS_BUCKET, Key="vectors.npy")
+        existing = np.load(io.BytesIO(obj["Body"].read()))
+    except Exception:
+        existing = np.empty((0, 256), dtype=np.float32)
+
+    # ── Append new vectors ────────────────────────────────────────────────────
     new_vecs = np.array(embeddings, dtype=np.float32)
     combined = np.vstack([existing, new_vecs]) if existing.shape[0] else new_vecs
 
@@ -236,7 +252,7 @@ def step_s3vec(doc_id: str, embeddings: list, chunks: list, metadata: dict) -> d
     buf.seek(0)
     s3.put_object(Bucket=S3_VECTORS_BUCKET, Key="vectors.npy", Body=buf.getvalue())
 
-    # Append metadata entries
+    # ── Append metadata entries ───────────────────────────────────────────────
     for i, chunk in enumerate(chunks):
         entry = {**metadata, **chunk, "vector_idx": int(len(existing)) + i}
         existing_meta.append(entry)
@@ -251,6 +267,7 @@ def step_s3vec(doc_id: str, embeddings: list, chunks: list, metadata: dict) -> d
         "vectors_added": len(embeddings),
         "total_vectors": int(combined.shape[0]),
         "doc_id":        doc_id,
+        "skipped":       False,
     }
 
 
@@ -320,6 +337,28 @@ Return ONLY valid JSON with these fields (use null if not found):
 def step_clickhouse(doc_id: str, metadata: dict, s3_key: str) -> dict:
     ch  = _ch()
     now = datetime.utcnow()
+
+    # ── IDEMPOTENCY GUARD ─────────────────────────────────────────────────────
+    # ReplacingMergeTree deduplicates eventually but not immediately.
+    # Explicit check prevents double-counting in analytics during the merge window.
+    try:
+        existing = ch.query(
+            "SELECT count() as cnt FROM banking_docs.documents WHERE doc_id = {doc_id:String}",
+            parameters={"doc_id": doc_id},
+        )
+        count = existing.result_rows[0][0] if existing.result_rows else 0
+        if count > 0:
+            print(f"[clickhouse] ⚡ {doc_id} already in documents table — skipping (idempotent)")
+            return {
+                "rows_inserted": 0,
+                "doc_id":        doc_id,
+                "table":         "banking_docs.documents",
+                "skipped":       True,
+                "reason":        "already_exists",
+            }
+    except Exception as exc:
+        # If the check itself fails, proceed with insert (ReplacingMergeTree handles it)
+        print(f"[clickhouse] Idempotency check failed ({exc}) — proceeding with insert")
 
     def safe(key, default=""):
         val = metadata.get(key, default)

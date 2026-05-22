@@ -354,7 +354,7 @@ def make_trial_doc(n):
     story.append(_table([
         ["Case Reference",  ref,                    "Status",   "Closed"],
         ["Complaint Type",  "Online Banking Issue", "Priority", "Low"],
-        ["Customer ID",     cust_id,                "Branch",   "Glasgow BR008"],
+        ["Customer ID",     cust_id,                "Branch",   "Gold Coast BR008"],
         ["Filed",           "01 May 2026",          "Closed",   "10 May 2026"],
     ]))
     story.append(Spacer(1, 10))
