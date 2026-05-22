@@ -289,6 +289,26 @@ Resources:
         - Key: Project
           Value: askmybank
 
+  # ── SQS Queue Policy: allow S3 to send events to PipelineQueue ──────────────
+  # S3 event notifications require an explicit resource-based policy on the queue.
+  # Without this, the S3 console shows "Unable to validate destination configurations".
+  PipelineQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref PipelineQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt PipelineQueue.Arn
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub "arn:aws:s3:::${S3SourceBucket}"
+
   # ── EventBridge: Pipeline Drain Schedule ─────────────────────────────────────
   # Fires every 30 minutes → Lambda pops PIPELINE_BATCH_SIZE docs from PipelineQueue
   # → starts that many Orkes workflows → returns.
