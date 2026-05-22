@@ -156,6 +156,10 @@
     .flow-node.n-appian   { background: #0d3330; color: #14b8a6; border: 2px solid #14b8a6; }
     .flow-node.n-signal   { background: #1a3320; color: #34d399; border: 2px solid #34d399; }
     .flow-node.n-done     { background: #1a3320; color: #34d399; border: 2px solid #34d399; }
+    .flow-node.n-eb       { background: #1a1a3f; color: #c084fc; border: 2px solid #c084fc; }
+    .flow-node.n-err      { background: #3d0808; color: #f87171; border: 2px solid #f87171; }
+    .badge.eb       { background: rgba(192,132,252,0.15); color: #c084fc; border: 1px solid rgba(192,132,252,0.25); }
+    .badge.noworker { background: rgba(16,185,129,0.15);  color: #34d399; border: 1px solid rgba(16,185,129,0.25); }
 
     .flow-connector {
       width: 2px;
@@ -294,10 +298,11 @@
 <!-- ── Header ── -->
 <div class="page-header">
   <div class="section-label">Human-in-the-Loop Design</div>
-  <h1>Four HITL Patterns, <span>Two Orchestration Engines</span></h1>
+  <h1>Five HITL Patterns, <span>Two Orchestration Engines</span></h1>
   <p class="subtitle">
     When AI alone isn't enough — a framework for durable, signal-driven, auditable back-office
-    decisions across Temporal and Orkes, connected via Lambda, SQS, ClickHouse, and Appian.
+    decisions across Temporal and Orkes, connected via Lambda, SQS, EventBridge, ClickHouse, and Appian.
+    Includes auto-HITL for pipeline step failures and burst-safe document ingestion via SQS queue + scheduled drain.
   </p>
 </div>
 
@@ -317,13 +322,17 @@
   </div>
   <div class="insight-item">
     <div class="insight-label">Worker Requirement</div>
-    <div class="insight-value">Temporal: no worker needed (wait-only workflows). Orkes: worker required for task execution</div>
+    <div class="insight-value">Temporal: no worker needed (wait-only workflows). Orkes v2: no worker either — HTTP system tasks call Lambda directly</div>
+  </div>
+  <div class="insight-item">
+    <div class="insight-label">Pipeline Burst Control</div>
+    <div class="insight-value">SQS intake queue + EventBridge 30-min drain — month-end batch of 400 docs clears overnight at 20/batch, no throttling, no sidecar</div>
   </div>
 </div>
 
 <!-- ── Flow cards ── -->
-<div class="section-title">The Four HITL Flows</div>
-<div class="section-sub">Each action type has a different orchestration pattern matched to its operational requirements</div>
+<div class="section-title">Five HITL Patterns</div>
+<div class="section-sub">Each action type has a different orchestration pattern matched to its operational requirements — including auto-HITL for pipeline step failures</div>
 
 <div class="flows-grid">
 
@@ -502,17 +511,19 @@
     </div>
   </div>
 
-  <!-- Flow 3: Legal Export -->
+  <!-- Flow 3: Document Ingestion Pipeline (v2 — Queue + HTTP Tasks) -->
   <div class="flow-card">
     <div class="flow-header">
       <div class="flow-icon amber">⚖️</div>
       <div class="flow-meta">
-        <div class="flow-title">Legal Export (Document Pipeline)</div>
-        <div class="flow-subtitle">action: legal_export</div>
+        <div class="flow-title">Document Ingestion Pipeline</div>
+        <div class="flow-subtitle">v2 — SQS queue + EventBridge drain + HTTP system tasks</div>
       </div>
       <div class="flow-badges">
         <span class="badge orkes">Orkes</span>
         <span class="badge sqs">SQS</span>
+        <span class="badge eb">EventBridge</span>
+        <span class="badge noworker">✓ No Worker</span>
         <span class="badge status-built">✓ Built</span>
       </div>
     </div>
@@ -520,53 +531,57 @@
       <div class="flow-diagram">
 
         <div class="flow-step">
-          <div class="flow-step-left"><div class="flow-node n-chat">UI</div><div class="flow-connector"></div></div>
+          <div class="flow-step-left"><div class="flow-node n-sqs">Q</div><div class="flow-connector"></div></div>
           <div class="flow-content">
-            <div class="flow-content-label">Banker clicks "Legal Export" in chat.html</div>
-            <div class="flow-content-desc">Compliance / legal team requires certified document package. Complex multi-step processing needed.</div>
+            <div class="flow-content-label">Any source → SQS PipelineQueue</div>
+            <div class="flow-content-desc">S3 events, POST /pipeline/ingest, Appian triggers — all funnel to one durable queue. Month-end bursts sit here harmlessly (7-day retention, no data loss).</div>
+            <span class="flow-content-note green">Burst control without a sidecar — throttle upfront at the queue</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-eb">EB</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">EventBridge fires every 30 min → Lambda drain</div>
+            <div class="flow-content-desc">Pops up to 20 messages per run (configurable PIPELINE_BATCH_SIZE). Manual trigger: POST /pipeline/drain to skip the schedule during testing.</div>
+            <span class="flow-content-note blue">Same EventBridge pattern as Lambda warming — zero extra infra</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-orkes">O</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Orkes: HTTP system tasks — no worker daemon</div>
+            <div class="flow-content-desc">INLINE Graal JS detects doc type. HTTP tasks call Lambda /pipeline/step/* directly. Orkes awaits HTTP 200 before advancing — sequencing guaranteed.</div>
+            <span class="flow-content-note green">v2: detect (INLINE JS) → textract (600s) → chunk → embed → s3vec + clickhouse (parallel)</span>
           </div>
         </div>
 
         <div class="flow-step">
           <div class="flow-step-left"><div class="flow-node n-lambda">λ</div><div class="flow-connector"></div></div>
           <div class="flow-content">
-            <div class="flow-content-label">Lambda: starts Orkes "askmybank_document_pipeline"</div>
-            <div class="flow-content-desc">TKT created in ClickHouse. Orkes execution ID stored. SQS message published. Orkes UI URL returned.</div>
-          </div>
-        </div>
-
-        <div class="flow-step">
-          <div class="flow-step-left"><div class="flow-node n-orkes">O</div><div class="flow-connector"></div></div>
-          <div class="flow-content">
-            <div class="flow-content-label">Orkes: visual DAG pipeline executes</div>
-            <div class="flow-content-desc">Textract OCR → chunk → embed → parallel: [S3 vectors] + [ClickHouse metadata] → certified package to legal S3 bucket.</div>
-            <span class="flow-content-note">Needs Orkes worker running (EC2 or local)</span>
-          </div>
-        </div>
-
-        <div class="flow-step">
-          <div class="flow-step-left"><div class="flow-node n-orkes">O</div><div class="flow-connector"></div></div>
-          <div class="flow-content">
-            <div class="flow-content-label">DO_WHILE checks: approval needed?</div>
-            <div class="flow-content-desc">For high-value exports, Orkes polls ClickHouse every 20s via check_ticket_status task. This is the poll model — showcasing Orkes strength for complex DAG pipelines.</div>
+            <div class="flow-content-label">Each step: idempotency guard before writing</div>
+            <div class="flow-content-desc">step_s3vec checks metadata.json for existing doc_id. step_clickhouse checks SELECT COUNT. Safe to re-trigger after any failure — no duplicate vectors.</div>
+            <span class="flow-content-note blue">doc_id = SHA-256(s3_key) — deterministic, collision-free</span>
           </div>
         </div>
 
         <div class="flow-step">
           <div class="flow-step-left"><div class="flow-node n-done">✓</div></div>
           <div class="flow-content">
-            <div class="flow-content-label">Legal team gets certified S3 package URL</div>
-            <div class="flow-content-desc">Orkes provides full visual execution history — ideal for compliance audit trail. No Appian involvement needed.</div>
-            <span class="flow-content-note blue">Why Orkes here: complex DAG, parallel steps, visual audit trail for compliance</span>
+            <div class="flow-content-label">Success: straight-through — no HITL noise</div>
+            <div class="flow-content-desc">Vectors live in askmybank-vectors S3. Metadata in ClickHouse. Document immediately searchable in chat. Orkes UI shows full visual DAG execution history for compliance.</div>
+            <span class="flow-content-note green">Failure path: step exception → auto-HITL ticket with re-trigger curl command (see Flow 5)</span>
           </div>
         </div>
 
       </div>
       <div class="flow-facts">
-        <div class="fact"><div class="fact-label">Engine</div><div class="fact-value">Orkes Conductor</div></div>
-        <div class="fact"><div class="fact-label">Worker</div><div class="fact-value">Required — EC2 / local</div></div>
-        <div class="fact"><div class="fact-label">Decision model</div><div class="fact-value">Poll (DO_WHILE, 20s)</div></div>
-        <div class="fact"><div class="fact-label">Best for</div><div class="fact-value">Multi-step pipelines, compliance audit</div></div>
+        <div class="fact"><div class="fact-label">Engine</div><div class="fact-value">Orkes HTTP tasks</div></div>
+        <div class="fact"><div class="fact-label">Worker</div><div class="fact-value">Not needed (v2)</div></div>
+        <div class="fact"><div class="fact-label">Burst control</div><div class="fact-value">SQS + 30-min drain</div></div>
+        <div class="fact"><div class="fact-label">Idempotency</div><div class="fact-value">metadata.json + ClickHouse COUNT</div></div>
+        <div class="fact"><div class="fact-label">Textract timeout</div><div class="fact-value">600s per step</div></div>
       </div>
     </div>
   </div>
@@ -635,6 +650,77 @@
         <div class="fact"><div class="fact-label">Engine</div><div class="fact-value">Temporal (optional)</div></div>
         <div class="fact"><div class="fact-label">Worker</div><div class="fact-value">Not needed</div></div>
         <div class="fact"><div class="fact-label">Outcomes</div><div class="fact-value">gap_resolved / gap_deferred / sla_breached</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow 5: Pipeline Step Failure → Auto-HITL -->
+  <div class="flow-card">
+    <div class="flow-header">
+      <div class="flow-icon amber">🔥</div>
+      <div class="flow-meta">
+        <div class="flow-title">Pipeline Step Failure → Auto-HITL</div>
+        <div class="flow-subtitle">_pipeline_failure_hitl() — ops never miss a failed doc</div>
+      </div>
+      <div class="flow-badges">
+        <span class="badge lambda">Lambda</span>
+        <span class="badge orkes">Orkes</span>
+        <span class="badge status-built">✓ Built</span>
+      </div>
+    </div>
+    <div class="flow-body">
+      <div class="flow-diagram">
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-orkes">O</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Orkes calls Lambda /pipeline/step/* (HTTP task)</div>
+            <div class="flow-content-desc">Any of 6 steps: detect → textract → chunk → embed → s3vec → clickhouse. Orkes awaits HTTP response before advancing.</div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-err">!</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Exception raised in any step</div>
+            <div class="flow-content-desc">Textract timeout, Bedrock throttle, ClickHouse down, malformed PDF — any exception is caught by the try/except wrapper on every step endpoint.</div>
+            <span class="flow-content-note">Lambda returns HTTP 500 → Orkes marks task FAILED</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-lambda">λ</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">_pipeline_failure_hitl() fires automatically</div>
+            <div class="flow-content-desc">Calls hitl.log_content_gap() with step name, doc_id, s3_key, and the error string. ClickHouse content_gaps table gets a row immediately.</div>
+            <span class="flow-content-note green">Same HITL logging path as escalate_to_it — reuses existing infrastructure</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-signal">📋</div><div class="flow-connector"></div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Ops team gets ticket with re-trigger command</div>
+            <div class="flow-content-desc">user_feedback field contains a ready-to-paste curl command — POST /pipeline/ingest with the s3_key. Ops fixes the root cause, runs the curl, re-queues in 30 seconds.</div>
+            <span class="flow-content-note blue">curl -X POST .../pipeline/ingest -d '{"s3_key":"raw-docs/..."}'</span>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-step-left"><div class="flow-node n-done">✓</div></div>
+          <div class="flow-content">
+            <div class="flow-content-label">Re-ingest is idempotent — safe to re-run</div>
+            <div class="flow-content-desc">Idempotency guards in step_s3vec and step_clickhouse detect if earlier steps already succeeded and skip cleanly. Only failed steps re-execute — no duplicate vectors.</div>
+            <span class="flow-content-note green">No manual cleanup needed — re-trigger and walk away</span>
+          </div>
+        </div>
+
+      </div>
+      <div class="flow-facts">
+        <div class="fact"><div class="fact-label">Detection</div><div class="fact-value">Automatic — every step wrapped</div></div>
+        <div class="fact"><div class="fact-label">Ops action</div><div class="fact-value">Fix root cause + paste curl</div></div>
+        <div class="fact"><div class="fact-label">Re-run safety</div><div class="fact-value">Idempotency guard per step</div></div>
+        <div class="fact"><div class="fact-label">HITL noise on success</div><div class="fact-value">Zero — straight-through only</div></div>
       </div>
     </div>
   </div>
@@ -779,11 +865,14 @@
     </div>
 
     <div class="status-card">
-      <h4>✅ Orkes Pipeline (Orkes Cloud)</h4>
+      <h4>✅ Orkes Pipeline v2 (No Worker)</h4>
       <ul class="status-list">
-        <li><div class="status-icon">✅</div><div class="status-text"><strong>askmybank_document_pipeline</strong>Textract → chunk → embed → S3 vectors + ClickHouse. Visual DAG in Orkes UI.</div></li>
-        <li><div class="status-icon">⚠️</div><div class="status-text"><strong>Orkes worker required</strong>Must run python -m workflows.orkes.worker during demo (EC2 or local Mac).</div></li>
-        <li><div class="status-icon">✅</div><div class="status-text"><strong>POST /pipeline/ingest</strong>Lambda triggers pipeline for any S3 document key. Used for new document ingestion.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>askmybank_document_pipeline v2</strong>INLINE Graal JS detect → HTTP tasks → Textract → chunk → embed → S3 vectors + ClickHouse. Visual DAG in Orkes UI.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>No worker daemon needed</strong>Orkes HTTP system tasks call Lambda /pipeline/step/* directly. Worker replaced by Lambda endpoints.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>POST /pipeline/ingest → SQS queue</strong>Queues document for drain. PIPELINE_QUEUE_URL env var must be set after SAM deploy.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>POST /pipeline/drain</strong>Manual drain trigger — pops PIPELINE_BATCH_SIZE docs from queue and starts Orkes workflows immediately.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>GET /pipeline/queue/status</strong>Queue depth, DLQ depth, ETA hours — live visibility into backlog.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>Auto-HITL on step failure</strong>_pipeline_failure_hitl() fires on any exception — ops gets ClickHouse ticket with re-trigger curl command.</div></li>
       </ul>
     </div>
 
@@ -808,10 +897,14 @@
     </div>
 
     <div class="status-card">
-      <h4>✅ Infrastructure (AWS SAM)</h4>
+      <h4>✅ Infrastructure (AWS SAM) — Pending Deploy</h4>
       <ul class="status-list">
-        <li><div class="status-icon">✅</div><div class="status-text"><strong>SQS HITLQueue + DLQ</strong>14-day retention, 5-min visibility, 20s long-poll, maxReceiveCount=3.</div></li>
-        <li><div class="status-icon">✅</div><div class="status-text"><strong>Lambda IAM</strong>sqs:SendMessage permission added to execution role.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>SQS HITLQueue + DLQ</strong>14-day retention, 5-min visibility, 20s long-poll, maxReceiveCount=3. Live in AWS.</div></li>
+        <li><div class="status-icon">⏳</div><div class="status-text"><strong>SQS PipelineQueue + PipelineDLQ</strong>7-day retention, 10-min visibility, maxReceiveCount=3. Defined in template.yaml — needs sam deploy.</div></li>
+        <li><div class="status-icon">⏳</div><div class="status-text"><strong>EventBridge PipelineDrainRule</strong>Fires every 30 min → Lambda {"source":"pipeline_drain"}. Defined in template.yaml — needs sam deploy.</div></li>
+        <li><div class="status-icon">⏳</div><div class="status-text"><strong>S3 event notification</strong>banking-docs-poc-qahftr → s3:ObjectCreated:* → prefix raw-docs/ → PipelineQueue. Manual AWS console step after deploy.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>Lambda IAM</strong>sqs:ReceiveMessage / DeleteMessage / GetQueueAttributes on PipelineQueue + DLQ added to template.yaml.</div></li>
+        <li><div class="status-icon">✅</div><div class="status-text"><strong>Lambda timeout</strong>870s (14.5 min) — accommodates Textract async poll loop. Updated in Globals.</div></li>
         <li><div class="status-icon">✅</div><div class="status-text"><strong>API Gateway CORS</strong>X-Backoffice-Key and dpanwar-vigyan.github.io added to CorsConfiguration.</div></li>
         <li><div class="status-icon">✅</div><div class="status-text"><strong>ClickHouse tables</strong>backoffice_requests and content_gaps schemas deployed.</div></li>
       </ul>
