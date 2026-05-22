@@ -17,6 +17,7 @@ Pipeline endpoints (Phase 3 — queued, scheduled, controlled throughput):
   POST /pipeline/drain           — pop a batch from queue → start Orkes workflows
                                    also triggered by EventBridge every 30 min
   GET  /pipeline/queue/status    — queue depth, DLQ depth, batch size
+  POST /pipeline/step/detect     — Orkes HTTP task: classify doc_type, generate doc_id
   POST /pipeline/step/textract   — Orkes HTTP task: Textract PDF → raw text
   POST /pipeline/step/chunk      — Orkes HTTP task: chunk text into passages
   POST /pipeline/step/embed      — Orkes HTTP task: Bedrock embeddings
@@ -278,6 +279,11 @@ class PipelineIngestRequest(BaseModel):
     source_system: str = "manual"    # "manual" | "s3_event"
 
 # ── Pipeline step request models (called by Orkes HTTP system tasks v2) ───────
+
+class PipelineDetectRequest(BaseModel):
+    s3_key:      str
+    doc_type:    str = ""
+    customer_id: str = ""
 
 class PipelineTextractRequest(BaseModel):
     s3_key: str
@@ -553,6 +559,18 @@ def log_content_gap(req: ContentGapRequest):
 def _check_pipeline_auth(x_backoffice_key: str = Header(default="")):
     if BACKOFFICE_KEY and x_backoffice_key != BACKOFFICE_KEY:
         raise HTTPException(status_code=401, detail="Invalid X-Backoffice-Key")
+
+
+@app.post("/pipeline/step/detect")
+def pipeline_step_detect(req: PipelineDetectRequest,
+                          x_backoffice_key: str = Header(default="")):
+    """Orkes HTTP task: classify doc_type from s3_key, generate doc_id. ~1ms, no AWS calls."""
+    _check_pipeline_auth(x_backoffice_key)
+    try:
+        return step_detect(s3_key=req.s3_key, doc_type=req.doc_type, customer_id=req.customer_id)
+    except Exception as exc:
+        _pipeline_failure_hitl("detect", "", req.s3_key, str(exc))
+        raise HTTPException(status_code=500, detail=f"Detect failed: {exc}")
 
 
 @app.post("/pipeline/step/textract")
