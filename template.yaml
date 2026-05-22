@@ -11,6 +11,16 @@ Parameters:
     Description: S3 bucket containing vectors.npy and metadata.json
     Default: askmybank-vectors
 
+  S3SourceBucket:
+    Type: String
+    Description: S3 bucket where raw banking PDFs land (source for Textract)
+    Default: banking-docs-poc-qahftr
+
+  PipelineBatchSize:
+    Type: Number
+    Description: Number of documents the scheduled drainer processes per run
+    Default: 20
+
   BedrockRegion:
     Type: String
     Default: us-east-1
@@ -69,22 +79,28 @@ Parameters:
 Globals:
   Function:
     Runtime: python3.11
-    Timeout: 60          # RAG + LLM calls can take 10-20s
+    # 870s (14.5 min) — Textract async jobs can take up to 2 min;
+    # pipeline step endpoints poll, so Lambda must outlast the poll window.
+    # RAG/chat routes finish in <5s — this only affects billing when steps are running.
+    Timeout: 870
     MemorySize: 512      # enough for numpy + 4MB vectors in memory
     Environment:
       Variables:
-        S3_VECTORS_BUCKET:  !Ref VectorsBucket
-        BEDROCK_REGION:     !Ref BedrockRegion
-        CLICKHOUSE_HOST:     !Ref ClickHouseHost
-        CLICKHOUSE_USER:     !Ref ClickHouseUser
-        CLICKHOUSE_PASSWORD: !Ref ClickHousePassword
-        DEMO_API_KEY:        !Ref DemoApiKey
-        ORKES_API_URL:       !Ref OrkesApiUrl
-        ORKES_KEY_ID:        !Ref OrkesKeyId
-        ORKES_KEY_SECRET:    !Ref OrkesKeySecret
-        APPIAN_BASE_URL:     !Ref AppianBaseUrl
-        APPIAN_API_KEY:      !Ref AppianApiKey
-        HITL_SQS_QUEUE_URL:  !Ref HITLQueue
+        S3_VECTORS_BUCKET:    !Ref VectorsBucket
+        S3_SOURCE_BUCKET:     !Ref S3SourceBucket
+        BEDROCK_REGION:       !Ref BedrockRegion
+        CLICKHOUSE_HOST:      !Ref ClickHouseHost
+        CLICKHOUSE_USER:      !Ref ClickHouseUser
+        CLICKHOUSE_PASSWORD:  !Ref ClickHousePassword
+        DEMO_API_KEY:         !Ref DemoApiKey
+        ORKES_API_URL:        !Ref OrkesApiUrl
+        ORKES_KEY_ID:         !Ref OrkesKeyId
+        ORKES_KEY_SECRET:     !Ref OrkesKeySecret
+        APPIAN_BASE_URL:      !Ref AppianBaseUrl
+        APPIAN_API_KEY:       !Ref AppianApiKey
+        HITL_SQS_QUEUE_URL:   !Ref HITLQueue
+        PIPELINE_QUEUE_URL:   !Ref PipelineQueue
+        PIPELINE_BATCH_SIZE:  !Ref PipelineBatchSize
 
 Resources:
 
@@ -116,13 +132,31 @@ Resources:
                 - textract:StartDocumentTextDetection
                 - textract:GetDocumentTextDetection
               Resource: "*"
-        # SQS — publish HITL cases to the queue for Appian
+        # S3 — read source PDFs for Textract pipeline
+        - S3ReadPolicy:
+            BucketName: !Ref S3SourceBucket
+        # S3 — write updated vectors.npy + metadata.json
+        - S3CrudPolicy:
+            BucketName: !Ref VectorsBucket
+        # SQS — HITL banker queue (send to Appian)
         - Statement:
             - Effect: Allow
               Action:
                 - sqs:SendMessage
                 - sqs:GetQueueAttributes
               Resource: !GetAtt HITLQueue.Arn
+        # SQS — Pipeline intake queue (receive, delete, send, inspect depth)
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+                - sqs:ChangeMessageVisibility
+              Resource:
+                - !GetAtt PipelineQueue.Arn
+                - !GetAtt PipelineDLQ.Arn
       Events:
         # API Gateway HTTP API (cheaper than REST API)
         ApiRoot:
@@ -214,18 +248,72 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "askmybank-hitl-${Stage}"
-      # How long a message is invisible after Appian picks it up (5 min to process)
       VisibilityTimeout: 300
-      # Retain messages 14 days — survives Appian outages up to 2 weeks
       MessageRetentionPeriod: 1209600
-      # Appian polls every minute; messages older than 60s become available
-      ReceiveMessageWaitTimeSeconds: 20  # long-poll, reduces empty receives
+      ReceiveMessageWaitTimeSeconds: 20
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt HITLDeadLetterQueue.Arn
-        maxReceiveCount: 3               # 3 failed Appian attempts → DLQ
+        maxReceiveCount: 3
       Tags:
         - Key: Project
           Value: askmybank
+
+  # ── SQS: Document Pipeline Intake Queue ─────────────────────────────────────
+  # All incoming document events land here (S3 events, API calls, Appian triggers).
+  # The scheduled drainer pops batches and starts Orkes workflows at a controlled rate.
+  # Queue depth = live backlog visibility (month-end burst sits here harmlessly).
+
+  PipelineDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "askmybank-pipeline-dlq-${Stage}"
+      MessageRetentionPeriod: 1209600    # 14 days — inspect failed doc events
+      Tags:
+        - Key: Project
+          Value: askmybank
+
+  PipelineQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "askmybank-pipeline-${Stage}"
+      # 10 min — enough for the drainer Lambda to start Orkes workflow before re-queuing
+      VisibilityTimeout: 600
+      # 7 days — month-end burst can wait without message loss
+      MessageRetentionPeriod: 604800
+      ReceiveMessageWaitTimeSeconds: 5
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PipelineDLQ.Arn
+        # After 3 failed drain attempts → DLQ for manual ops review
+        maxReceiveCount: 3
+      Tags:
+        - Key: Project
+          Value: askmybank
+
+  # ── EventBridge: Pipeline Drain Schedule ─────────────────────────────────────
+  # Fires every 30 minutes → Lambda pops PIPELINE_BATCH_SIZE docs from PipelineQueue
+  # → starts that many Orkes workflows → returns.
+  # Tune the schedule or batch size to control throughput without touching code.
+  # Low priority pipeline: overnight month-end burst clears at its own pace.
+
+  PipelineDrainRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "askmybank-pipeline-drain-${Stage}"
+      Description: Pop a batch from PipelineQueue and start Orkes workflows
+      ScheduleExpression: "rate(30 minutes)"
+      State: ENABLED
+      Targets:
+        - Id: DrainPipelineQueue
+          Arn: !GetAtt AskMyBankFunction.Arn
+          Input: '{"source": "pipeline_drain"}'
+
+  PipelineDrainPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt AskMyBankFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt PipelineDrainRule.Arn
 
 Outputs:
   ApiUrl:
@@ -251,3 +339,15 @@ Outputs:
   HITLDeadLetterQueueUrl:
     Description: DLQ — messages Appian failed to process 3 times
     Value: !Ref HITLDeadLetterQueue
+
+  PipelineQueueUrl:
+    Description: Pipeline intake queue — configure S3 event notification to point here
+    Value: !Ref PipelineQueue
+
+  PipelineQueueArn:
+    Description: Pipeline intake queue ARN — for S3 event notification config
+    Value: !GetAtt PipelineQueue.Arn
+
+  PipelineDLQUrl:
+    Description: Pipeline DLQ — docs that failed to drain 3 times land here
+    Value: !Ref PipelineDLQ
