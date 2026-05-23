@@ -2,9 +2,16 @@
 S3 + NumPy vector retriever — Lambda-compatible replacement for ChromaDB.
 
 On cold start: downloads vectors.npy + metadata.json from S3 (~1-2s, ~4MB).
-On warm invocations: uses module-level cache — no S3 call, <5ms search.
+On warm invocations: checks S3 ETag (HEAD, ~1ms) at most every ETAG_CHECK_INTERVAL_S
+seconds. Reloads only when vectors.npy has actually changed.
 
-Cost: ~$0.0001/month (S3 storage for 4MB). No external accounts needed.
+Why ETag and not TTL:
+  Lambda scales horizontally — multiple warm containers each have their own
+  in-memory cache. A TTL only fixes the container it runs in. ETag check is
+  per-container and self-healing: every container independently detects when
+  the pipeline has written new vectors and reloads automatically.
+
+Cost: HEAD request ~$0.000004 per 10k checks. Negligible.
 """
 
 import io
@@ -21,59 +28,96 @@ VECTORS_KEY  = "vectors.npy"
 METADATA_KEY = "metadata.json"
 TOP_K        = 20
 
-# How long (seconds) before the in-memory vector cache is considered stale.
-# Default 300s (5 min) — matches the Lambda warming interval so new docs
-# are searchable within one warm cycle after the pipeline completes.
-# Set VECTOR_CACHE_TTL_S=0 to disable TTL (reload only on cold start).
-CACHE_TTL_S = int(os.getenv("VECTOR_CACHE_TTL_S", "300"))
+# How often (seconds) to HEAD-check S3 for a new ETag.
+# Default 30s — balances freshness vs. S3 API cost.
+# Set to 0 to check every request (max freshness, tiny cost increase).
+ETAG_CHECK_INTERVAL_S = int(os.getenv("VECTOR_ETAG_CHECK_INTERVAL_S", "30"))
 
 # Module-level cache — persists for the lifetime of the Lambda container.
-_vectors:   np.ndarray | None = None
-_metadata:  list[dict] | None = None
-_loaded_at: float             = 0.0   # epoch seconds of last S3 load
+_vectors:        np.ndarray | None = None
+_metadata:       list[dict] | None = None
+_loaded_etag:    str               = ""    # ETag of vectors.npy at last load
+_last_etag_check: float            = 0.0  # epoch of last HEAD request
+
+
+def _s3_current_etag(s3) -> str:
+    """Lightweight HEAD request — returns ETag of vectors.npy on S3."""
+    resp = s3.head_object(Bucket=S3_BUCKET, Key=VECTORS_KEY)
+    return resp.get("ETag", "")
 
 
 def _load(force: bool = False):
     """
-    Download vectors + metadata from S3.
+    Load vectors + metadata from S3, reloading when content has changed.
 
-    Skips the download (returns immediately) when:
-      - Already loaded AND
-      - Cache is within TTL AND
-      - force=False
-
-    Pass force=True from /pipeline/step/complete to make a newly ingested
-    document immediately searchable without waiting for TTL expiry.
+    Decision logic (per container, per invocation):
+      1. Cold start (no cache)         → always load
+      2. force=True                    → always reload (called by /step/complete)
+      3. ETag check interval not yet   → skip (cache is recent enough)
+      4. ETag check interval elapsed   → HEAD vectors.npy, compare ETag
+         a. ETag same → skip (nothing changed)
+         b. ETag different → reload (pipeline wrote new vectors)
     """
-    global _vectors, _metadata, _loaded_at
-
-    now = time.time()
-    cache_age = now - _loaded_at
-
-    if _vectors is not None and not force:
-        if CACHE_TTL_S == 0 or cache_age < CACHE_TTL_S:
-            return   # warm and fresh — skip S3 download
+    global _vectors, _metadata, _loaded_etag, _last_etag_check
 
     if not S3_BUCKET:
         raise S3RetrieverUnavailableError("S3_VECTORS_BUCKET not set")
 
+    s3  = boto3.client("s3")
+    now = time.time()
+
+    # ── Cold start: no cache yet ──────────────────────────────────────────────
+    if _vectors is None:
+        _do_load(s3, reason="cold start")
+        return
+
+    # ── Forced reload (called from /pipeline/step/complete) ───────────────────
+    if force:
+        _do_load(s3, reason="pipeline complete — forced reload")
+        return
+
+    # ── ETag check interval not elapsed yet — use cache ──────────────────────
+    if (now - _last_etag_check) < ETAG_CHECK_INTERVAL_S:
+        return
+
+    # ── Time to check — HEAD request to S3 ───────────────────────────────────
+    try:
+        _last_etag_check = now
+        current_etag = _s3_current_etag(s3)
+        if current_etag == _loaded_etag:
+            return   # vectors.npy unchanged — keep cache
+        _do_load(s3, reason=f"ETag changed ({_loaded_etag[:8]}…→{current_etag[:8]}…)")
+    except Exception as exc:
+        # If the HEAD check fails, keep using the cached data rather than error
+        print(f"[s3_retriever] ETag check failed (using cache): {exc}")
+
+
+def _do_load(s3, reason: str):
+    """Actually download and replace the in-memory cache."""
+    global _vectors, _metadata, _loaded_etag, _last_etag_check
+
     t0 = time.time()
-    s3 = boto3.client("s3")
 
-    obj = s3.get_object(Bucket=S3_BUCKET, Key=VECTORS_KEY)
-    _vectors = np.load(io.BytesIO(obj["Body"].read())).astype(np.float32)
+    resp = s3.get_object(Bucket=S3_BUCKET, Key=VECTORS_KEY)
+    _loaded_etag = resp.get("ETag", "")
+    _vectors     = np.load(io.BytesIO(resp["Body"].read())).astype(np.float32)
 
-    obj = s3.get_object(Bucket=S3_BUCKET, Key=METADATA_KEY)
+    obj      = s3.get_object(Bucket=S3_BUCKET, Key=METADATA_KEY)
     _metadata = json.loads(obj["Body"].read().decode())
 
-    _loaded_at = time.time()
-    elapsed    = round(_loaded_at - t0, 2)
-    reason     = "forced reload" if force else ("cold start" if cache_age >= 9e9 else f"TTL expired ({cache_age:.0f}s old)")
-    print(f"S3 retriever loaded: {_vectors.shape[0]} vectors × {_vectors.shape[1]} dims in {elapsed}s [{reason}]")
+    _last_etag_check = time.time()
+    elapsed          = round(_last_etag_check - t0, 2)
+    print(f"S3 retriever loaded: {_vectors.shape[0]} vectors × {_vectors.shape[1]} dims "
+          f"in {elapsed}s [{reason}]")
 
 
 def force_reload():
-    """Force an immediate reload from S3. Call after pipeline writes new vectors."""
+    """
+    Force an immediate reload from S3 regardless of ETag check interval.
+    Called from /pipeline/step/complete so the new doc is searchable instantly
+    on this container. Other containers detect the ETag change within
+    VECTOR_ETAG_CHECK_INTERVAL_S seconds of their next request.
+    """
     _load(force=True)
 
 
@@ -88,6 +132,11 @@ class S3NumpyRetriever:
         _load()
 
     def retrieve(self, query: str, filters: dict) -> list[dict]:
+        # Check ETag on every retrieve — reloads only when vectors.npy has changed.
+        # HEAD request is throttled to ETAG_CHECK_INTERVAL_S so it's ~1ms overhead
+        # on most calls, zero overhead when interval hasn't elapsed.
+        _load()
+
         # 1. Embed the query
         query_vec  = np.array(self.embed([query])[0], dtype=np.float32)
         query_norm = query_vec / (np.linalg.norm(query_vec) or 1.0)
