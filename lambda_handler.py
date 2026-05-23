@@ -51,6 +51,7 @@ from rag.pipeline_steps import (
     step_detect, step_textract, step_chunk, step_embed,
     step_s3vec, step_meta, step_clickhouse, step_complete,
 )
+from rag.s3_retriever import force_reload as _force_vector_reload
 
 # ── SQS client (shared — HITL queue + Pipeline intake queue) ─────────────────
 _sqs              = boto3.client("sqs", region_name=os.getenv("AWS_REGION", "us-east-1"))
@@ -702,14 +703,24 @@ def pipeline_step_clickhouse(req: PipelineClickhouseRequest,
 @app.post("/pipeline/step/complete")
 def pipeline_step_complete(req: PipelineCompleteRequest,
                            x_backoffice_key: str = Header(default="")):
-    """Orkes HTTP task: log pipeline completion. Straight-through — no HITL on success."""
+    """Orkes HTTP task: log pipeline completion. Forces vector cache reload so the
+    newly ingested document is searchable immediately — no TTL wait needed."""
     _check_pipeline_auth(x_backoffice_key)
-    return step_complete(
+    result = step_complete(
         doc_id        = req.doc_id,
         vector_count  = req.vector_count,
         ch_inserted   = req.ch_inserted,
         source_system = req.source_system,
     )
+    # Reload the in-memory vector cache so the new doc is searchable right away.
+    # This runs in the same Lambda invocation as Orkes' HTTP task call — no extra hop.
+    try:
+        _force_vector_reload()
+        result["cache_reloaded"] = True
+    except Exception as exc:
+        print(f"[complete] ⚠️  Vector cache reload failed (non-fatal): {exc}")
+        result["cache_reloaded"] = False
+    return result
 
 
 # ── Document ingestion pipeline trigger ───────────────────────────────────────
