@@ -297,6 +297,7 @@ class HITLClient:
         workflow_name: str,
         workflow_input: dict,
         correlation_id: str = "",
+        version: int = None,
     ) -> str:
         """
         Start an Orkes Conductor workflow via HTTP API.
@@ -330,12 +331,15 @@ class HITLClient:
             token = _orkes_token_cache["token"]
 
             # ── Start workflow ───────────────────────────────────────────────
-            body = json.dumps({
+            # version=None → omit field → Orkes picks the latest registered version automatically
+            wf_body = {
                 "name":          workflow_name,
-                "version":       1,
                 "input":         workflow_input,
                 "correlationId": correlation_id or workflow_input.get("ticket_id", ""),
-            }).encode()
+            }
+            if version is not None:
+                wf_body["version"] = version
+            body = json.dumps(wf_body).encode()
             req = urllib.request.Request(
                 f"{ORKES_API_URL}/workflow",
                 data=body,
