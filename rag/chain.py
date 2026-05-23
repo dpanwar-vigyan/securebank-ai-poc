@@ -708,7 +708,16 @@ Please answer based only on the context above. Cite document IDs in your respons
         else:
             result = self.ask_content(query, filters)
 
-        # ── Store in answer cache ─────────────────────────────────────────────
-        _evict_if_full(_ANSWER_CACHE, ANSWER_CACHE_MAX)
-        _ANSWER_CACHE[key] = result
+        # ── Store in answer cache (only cache successful, non-empty answers) ──
+        # Never cache "no information found" responses — the document may be
+        # ingested moments later and the next query would get the wrong answer.
+        answer_text = result.get("answer", "")
+        is_no_info = not result.get("sources") and (
+            "does not contain" in answer_text.lower() or
+            "no matching" in answer_text.lower() or
+            "not contain any information" in answer_text.lower()
+        )
+        if not is_no_info:
+            _evict_if_full(_ANSWER_CACHE, ANSWER_CACHE_MAX)
+            _ANSWER_CACHE[key] = result
         return result
