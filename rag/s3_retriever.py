@@ -167,7 +167,10 @@ class S3NumpyRetriever:
         for local_idx in top_local:
             global_idx = indices[local_idx]
             meta = dict(_metadata[global_idx])
-            text = meta.pop("chunk_text", "")
+            # Support both field names: new pipeline writes "chunk_text",
+            # old bulk-loaded docs also use "chunk_text". Fall back to "text"
+            # for any chunks written before this fix.
+            text = meta.pop("chunk_text", None) or meta.pop("text", "")
             chunks.append({
                 "text":  text,
                 "meta":  meta,
