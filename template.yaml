@@ -320,7 +320,7 @@ Resources:
     Properties:
       Name: !Sub "askmybank-pipeline-drain-${Stage}"
       Description: Pop a batch from PipelineQueue and start Orkes workflows
-      ScheduleExpression: "rate(30 minutes)"
+      ScheduleExpression: "rate(5 minutes)"
       State: ENABLED
       Targets:
         - Id: DrainPipelineQueue
