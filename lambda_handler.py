@@ -40,7 +40,7 @@ from botocore.exceptions import ClientError
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from rag.chain import BankingRAG
 from rag.hitl_client import (
@@ -167,7 +167,27 @@ def _run_pipeline_drain() -> dict:
         for msg in messages:
             try:
                 body = json.loads(msg["Body"])
+
+                # Handle two message formats:
+                # 1. POST /pipeline/ingest → {"s3_key": "raw-docs/file.pdf", ...}
+                # 2. S3 event notification → {"Records": [{"s3": {"object": {"key": ...}}}]}
                 s3_key = body.get("s3_key", "")
+                if not s3_key:
+                    records = body.get("Records", [])
+                    if records:
+                        s3_key = records[0].get("s3", {}).get("object", {}).get("key", "")
+                        # S3 URL-encodes keys with spaces — decode just in case
+                        import urllib.parse
+                        s3_key = urllib.parse.unquote_plus(s3_key)
+                        # Enrich body with parsed fields for workflow input
+                        body["s3_key"]        = s3_key
+                        body["doc_type"]      = body.get("doc_type", "")
+                        body["customer_id"]   = body.get("customer_id", "")
+                        body["source_system"] = "s3_event"
+                    else:
+                        print(f"[drain] ⚠️  Skipping message — no s3_key and no Records: {msg['MessageId']}")
+                        _sqs.delete_message(QueueUrl=PIPELINE_QUEUE_URL, ReceiptHandle=msg["ReceiptHandle"])
+                        continue
 
                 wf_input = {
                     **body,
@@ -282,8 +302,15 @@ class PipelineIngestRequest(BaseModel):
 
 class PipelineDetectRequest(BaseModel):
     s3_key:      str
-    doc_type:    str = ""
-    customer_id: str = ""
+    doc_type:    Optional[str] = ""   # Optional: Orkes may send null when workflow input missing
+    customer_id: Optional[str] = ""
+
+    model_config = {"populate_by_name": True}
+
+    @field_validator("doc_type", "customer_id", mode="before")
+    @classmethod
+    def coerce_none_to_empty(cls, v):
+        return v or ""  # null / None / "" → ""
 
 class PipelineTextractRequest(BaseModel):
     s3_key: str
