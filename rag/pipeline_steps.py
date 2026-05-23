@@ -158,13 +158,12 @@ def step_chunk(raw_text: str, doc_id: str, doc_type: str, page_count: int = 1) -
 
     for sent in sentences:
         if current_len + len(sent) > CHUNK_SIZE and current:
-            chunk_text = " ".join(current)
             chunks.append({
-                "chunk_id":  f"{doc_id}_c{len(chunks):03d}",
-                "doc_id":    doc_id,
-                "doc_type":  doc_type,
-                "text":      chunk_text,
-                "chunk_idx": len(chunks),
+                "chunk_id":   f"{doc_id}_c{len(chunks):03d}",
+                "doc_id":     doc_id,
+                "doc_type":   doc_type,
+                "chunk_text": " ".join(current),   # match retriever key
+                "chunk_idx":  len(chunks),
             })
             current     = current[-1:] + [sent]
             current_len = sum(len(s) for s in current)
@@ -174,11 +173,11 @@ def step_chunk(raw_text: str, doc_id: str, doc_type: str, page_count: int = 1) -
 
     if current:
         chunks.append({
-            "chunk_id":  f"{doc_id}_c{len(chunks):03d}",
-            "doc_id":    doc_id,
-            "doc_type":  doc_type,
-            "text":      " ".join(current),
-            "chunk_idx": len(chunks),
+            "chunk_id":   f"{doc_id}_c{len(chunks):03d}",
+            "doc_id":     doc_id,
+            "doc_type":   doc_type,
+            "chunk_text": " ".join(current),        # match retriever key
+            "chunk_idx":  len(chunks),
         })
 
     print(f"[chunk] {doc_id} → {len(chunks)} chunks")
@@ -193,7 +192,7 @@ def step_embed(chunks: list, doc_id: str) -> dict:
 
     for chunk in chunks:
         body = json.dumps({
-            "inputText":  chunk["text"][:8000],
+            "inputText":  (chunk.get("chunk_text") or chunk.get("text", ""))[:8000],
             "dimensions": 256,
             "normalize":  True,
         })
