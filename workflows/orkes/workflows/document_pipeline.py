@@ -34,9 +34,8 @@ DAG (identical visual shape to V1/V2 — same Orkes UI appearance):
   HTTP → /pipeline/step/s3vec               HTTP → /pipeline/step/clickhouse
   └──────────────────────────────────JOIN──────────────────────┘
                               │
-                    WAIT (2h auto-continue spot-check)
-                              │
                     pipeline_complete ← HTTP → /pipeline/step/complete
+                    (straight-through — HITL only fires on step exceptions)
 
 Inputs (passed by /pipeline/ingest Lambda):
   s3_key         — S3 key of the source PDF (in banking-docs-poc-qahftr)
@@ -48,7 +47,7 @@ Inputs (passed by /pipeline/ingest Lambda):
 """
 
 WORKFLOW_NAME    = "askmybank_document_pipeline"
-WORKFLOW_VERSION = 3   # bump from 2 (INLINE Graal JS detect) → 3 (all HTTP tasks, no INLINE)
+WORKFLOW_VERSION = 4   # bump from 3 → 4: remove WAIT spot-check (straight-through on success)
 
 
 # ── Helper: build an HTTP system task definition ──────────────────────────────
@@ -104,10 +103,9 @@ WORKFLOW_DEF = {
     "name":        WORKFLOW_NAME,
     "version":     WORKFLOW_VERSION,
     "description": (
-        "AskMyBank v3 — All-HTTP pipeline, no worker, no INLINE tasks: "
-        "HTTP detect → HTTP Textract → chunk → FORK_JOIN(embed+s3vec ‖ meta+clickhouse) "
-        "→ WAIT spot-check → complete. "
-        "All steps are HTTP system tasks calling Lambda /pipeline/step/* directly."
+        "AskMyBank v4 — Straight-through on success, HITL only on failure: "
+        "HTTP detect → HTTP Textract → chunk → FORK_JOIN(embed+s3vec ‖ meta+clickhouse) → complete. "
+        "No WAIT step — pipeline completes without human intervention unless a step throws."
     ),
     "timeoutSeconds": 3600,          # 1h — Textract jobs can be slow for large PDFs
     "timeoutPolicy":  "TIME_OUT_WF",
@@ -222,19 +220,9 @@ WORKFLOW_DEF = {
             "joinOn":            ["s3vec_ref", "ch_ref"],
         },
 
-        # ── 5. WAIT — optional content reviewer spot-check ───────────────────
-        # Auto-continues after 2h if not actioned. Non-blocking for pipeline.
-        {
-            "name":              "askmybank_content_review_wait",
-            "taskReferenceName": "review_wait_ref",
-            "type":              "WAIT",
-            "inputParameters": {
-                "duration": "2 hours",
-            },
-            "optional": True,
-        },
-
-        # ── 6. HTTP: Mark pipeline complete ──────────────────────────────────
+        # ── 5. HTTP: Mark pipeline complete ──────────────────────────────────
+        # Straight-through on success — no WAIT, no HITL noise.
+        # HITL only fires on step exceptions via _pipeline_failure_hitl().
         _http_task(
             name = "askmybank_pipeline_complete",
             ref  = "complete_ref",
