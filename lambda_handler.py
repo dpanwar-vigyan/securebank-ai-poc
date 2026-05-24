@@ -195,6 +195,10 @@ def _run_pipeline_drain() -> dict:
                     "api_base_url":  api_base,
                     "backoffice_key": BACKOFFICE_KEY,
                 }
+                print(f"[drain] ▶ Triggering Orkes for {s3_key} "
+                      f"(ORKES_API_URL set={bool(os.getenv('ORKES_API_URL'))}, "
+                      f"KEY_ID set={bool(os.getenv('ORKES_KEY_ID'))}, "
+                      f"KEY_SECRET set={bool(os.getenv('ORKES_KEY_SECRET'))})")
                 wf_id = hitl.trigger_orkes_workflow(
                     workflow_name  = "askmybank_document_pipeline",
                     workflow_input = wf_input,
@@ -214,9 +218,18 @@ def _run_pipeline_drain() -> dict:
                     })
                     print(f"[drain] ✅ Started {wf_id} for {s3_key}")
                 else:
-                    # Orkes unavailable — leave message visible so it retries
+                    # Orkes unavailable — immediately restore message visibility so
+                    # the next drain (5 min) can retry rather than waiting 600s.
+                    try:
+                        _sqs.change_message_visibility(
+                            QueueUrl          = PIPELINE_QUEUE_URL,
+                            ReceiptHandle     = msg["ReceiptHandle"],
+                            VisibilityTimeout = 0,
+                        )
+                    except Exception:
+                        pass   # best-effort; message will re-appear after 600s anyway
                     failed.append({"s3_key": s3_key, "reason": "orkes_unavailable"})
-                    print(f"[drain] ⚠️  Orkes unavailable for {s3_key} — message left in queue")
+                    print(f"[drain] ⚠️  Orkes unavailable for {s3_key} — message returned to queue")
 
             except Exception as exc:
                 failed.append({"s3_key": body.get("s3_key", "?"), "reason": str(exc)})
@@ -831,6 +844,10 @@ def drain_pipeline(x_backoffice_key: str = Header(default="")):
     result = _run_pipeline_drain()
     if result.get("error"):
         raise HTTPException(status_code=503, detail=result["error"])
+    print(f"[drain/http] complete: {result['started']} started, "
+          f"{result['failed']} failed, "
+          f"{result['queue_remaining']} visible, "
+          f"{result['in_flight']} in-flight")
     return result
 
 
@@ -900,7 +917,9 @@ def handler(event, context):
             print(f"EventBridge pipeline_drain — popping up to {PIPELINE_BATCH_SIZE} docs")
             result = _run_pipeline_drain()
             print(f"[drain] complete: {result['started']} started, "
-                  f"{result['queue_remaining']} remaining in queue")
+                  f"{result['failed']} failed, "
+                  f"{result['queue_remaining']} visible, "
+                  f"{result['in_flight']} in-flight")
             return {"statusCode": 200, "body": json.dumps(result)}
 
     # All other events are HTTP requests via API Gateway → Mangum → FastAPI
