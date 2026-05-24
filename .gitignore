@@ -19,6 +19,9 @@ logs.txt
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
 
+# ── Claude Code (local session settings — never commit) ───────────────────────
+.claude/settings.local.json
+
 # ── chroma_db is intentionally INCLUDED in git ───────────────────────────────
 # (26 MB — needed so Streamlit Cloud has pre-built vector index on deploy)
 # Do NOT add chroma_db/ here.
