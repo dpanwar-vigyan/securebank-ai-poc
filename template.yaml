@@ -54,6 +54,22 @@ Parameters:
     NoEcho: true
     Description: Orkes application key secret
 
+  LangfuseSecretKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Langfuse secret key (sk-lf-...) — LLM observability tracing
+
+  LangfusePublicKey:
+    Type: String
+    Default: ""
+    Description: Langfuse public key (pk-lf-...) — LLM observability tracing
+
+  LangfuseHost:
+    Type: String
+    Default: "https://jp.cloud.langfuse.com"
+    Description: Langfuse regional host URL (Japan region for AU proximity)
+
   AppianBaseUrl:
     Type: String
     Default: ""
@@ -96,6 +112,9 @@ Globals:
         ORKES_API_URL:        !Ref OrkesApiUrl
         ORKES_KEY_ID:         !Ref OrkesKeyId
         ORKES_KEY_SECRET:     !Ref OrkesKeySecret
+        LANGFUSE_SECRET_KEY:  !Ref LangfuseSecretKey
+        LANGFUSE_PUBLIC_KEY:  !Ref LangfusePublicKey
+        LANGFUSE_HOST:        !Ref LangfuseHost
         APPIAN_BASE_URL:      !Ref AppianBaseUrl
         APPIAN_API_KEY:       !Ref AppianApiKey
         HITL_SQS_QUEUE_URL:   !Ref HITLQueue

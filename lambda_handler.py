@@ -923,4 +923,15 @@ def handler(event, context):
             return {"statusCode": 200, "body": json.dumps(result)}
 
     # All other events are HTTP requests via API Gateway → Mangum → FastAPI
-    return _mangum(event, context)
+    response = _mangum(event, context)
+
+    # Flush Langfuse traces before Lambda container may freeze.
+    # Must be done after the response is built, not before.
+    try:
+        if os.getenv("LANGFUSE_SECRET_KEY"):
+            from langfuse import get_client as _lf_get
+            _lf_get().flush()
+    except Exception:
+        pass   # never let observability delay a response
+
+    return response

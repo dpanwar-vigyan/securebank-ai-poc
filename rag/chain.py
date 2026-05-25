@@ -22,6 +22,27 @@ from pathlib import Path
 import boto3
 import rag.config  # noqa: F401 — loads .env + st.secrets into os.environ
 
+# ── Langfuse observability (optional — graceful no-op if not configured) ──────
+# Reads LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_HOST from env.
+# If keys are absent the decorator falls through transparently.
+try:
+    if os.getenv("LANGFUSE_SECRET_KEY"):
+        from langfuse import observe
+        _LANGFUSE_ENABLED = True
+        print("Langfuse tracing: ✅  (jp.cloud.langfuse.com)")
+    else:
+        raise ImportError("LANGFUSE_SECRET_KEY not set")
+except Exception as _lf_err:
+    _LANGFUSE_ENABLED = False
+    print(f"Langfuse tracing: disabled ({_lf_err})")
+
+    def observe(fn=None, *, name=None, as_type=None,   # noqa: E302
+                capture_input=True, capture_output=True):
+        """No-op observe decorator — used when Langfuse is not configured."""
+        if fn is not None:          # @observe  (no parens)
+            return fn
+        return lambda f: f          # @observe() (with parens)
+
 # ChromaDB is optional — not available in Lambda (uses S3+NumPy instead)
 try:
     import chromadb
@@ -121,6 +142,7 @@ class BedrockLLM:
     def __init__(self):
         self.client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 
+    @observe(as_type="generation", name="nova-lite-generation")
     def invoke(self, system: str, user: str, max_tokens: int = 1024) -> str:
         body = json.dumps({
             "messages": [{"role": "user", "content": [{"text": f"{system}\n\n{user}"}]}],
@@ -128,6 +150,18 @@ class BedrockLLM:
         })
         resp = self.client.invoke_model(modelId=LLM_MODEL, body=body, contentType="application/json")
         result = json.loads(resp["body"].read())
+        # Capture token usage for Langfuse cost tracking
+        usage = result.get("usage", {})
+        if _LANGFUSE_ENABLED and usage:
+            try:
+                from langfuse import get_client as _lf_get
+                _lf_get().get_current_observation().update(
+                    model=LLM_MODEL,
+                    usage={"input": usage.get("inputTokens", 0),
+                           "output": usage.get("outputTokens", 0)},
+                )
+            except Exception:
+                pass   # never let observability break inference
         return result["output"]["message"]["content"][0]["text"]
 
 
@@ -533,6 +567,7 @@ class BankingRAG:
             return {key: {"$eq": val}}
         return {"$and": [{k: {"$eq": v}} for k, v in filters.items()]}
 
+    @observe(name="vector-retrieve")
     def retrieve(self, query: str, filters: dict) -> list[dict]:
         # ── S3+NumPy (Phase 2 Lambda backend) ─────────────────────────────────
         if self.s3_retriever:
@@ -579,6 +614,7 @@ class BankingRAG:
         return chunks
 
     # ── Aggregation path → ClickHouse NL→SQL (with ChromaDB fallback) ───────
+    @observe(name="rag-aggregation")
     def ask_aggregation(self, query: str, filters: dict) -> dict:
         # Lazy-connect to ClickHouse on first aggregation query
         ch = self._get_ch()
@@ -622,6 +658,7 @@ class BankingRAG:
         }
 
     # ── Content RAG path ────────────────────────────────────────────────────
+    @observe(name="rag-content")
     def ask_content(self, query: str, filters: dict) -> dict:
         chunks = self.retrieve(query, filters)
 
@@ -691,6 +728,7 @@ Please answer based only on the context above. Cite document IDs in your respons
         }
 
     # ── Main entry point ────────────────────────────────────────────────────
+    @observe(name="rag-ask")
     def ask(self, query: str) -> dict:
         key = _cache_key(query)
 
