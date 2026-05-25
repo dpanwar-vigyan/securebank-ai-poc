@@ -4,7 +4,7 @@
 .PHONY: build-AskMyBankFunction
 
 build-AskMyBankFunction:
-	/usr/bin/python3 -m pip install \
+	/opt/homebrew/bin/python3 -m pip install \
 		--platform manylinux2014_x86_64 \
 		--implementation cp \
 		--python-version 3.11 \

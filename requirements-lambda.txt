@@ -8,3 +8,4 @@ numpy>=1.26.0
 clickhouse-connect>=0.7.0
 python-dotenv>=1.0.0
 temporalio>=1.7.0             # Temporal SDK — start workflows + send signals from Lambda
+langfuse==4.6.1               # LLM observability — traces RAG chain + Bedrock calls → jp.cloud.langfuse.com
