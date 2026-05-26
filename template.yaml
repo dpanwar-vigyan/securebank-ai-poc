@@ -81,6 +81,22 @@ Parameters:
     NoEcho: true
     Description: Appian API key for creating HITL cases
 
+  TemporalAddress:
+    Type: String
+    Default: ""
+    Description: Temporal Cloud gRPC endpoint (e.g. askmybank-pilot.kjpto.tmprl.cloud:7233)
+
+  TemporalNamespace:
+    Type: String
+    Default: ""
+    Description: Temporal Cloud namespace (e.g. askmybank-pilot.kjpto)
+
+  TemporalApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Temporal Cloud API key — used to authenticate workflow signals (HITL)
+
   ClickHousePassword:
     Type: String
     Default: ""
@@ -117,6 +133,9 @@ Globals:
         LANGFUSE_HOST:        !Ref LangfuseHost
         APPIAN_BASE_URL:      !Ref AppianBaseUrl
         APPIAN_API_KEY:       !Ref AppianApiKey
+        TEMPORAL_ADDRESS:     !Ref TemporalAddress
+        TEMPORAL_NAMESPACE:   !Ref TemporalNamespace
+        TEMPORAL_API_KEY:     !Ref TemporalApiKey
         HITL_SQS_QUEUE_URL:   !Ref HITLQueue
         PIPELINE_QUEUE_URL:   !Ref PipelineQueue
         PIPELINE_BATCH_SIZE:  !Ref PipelineBatchSize
