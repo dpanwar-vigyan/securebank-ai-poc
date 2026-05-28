@@ -346,7 +346,7 @@
         <p class="page-card-desc">Dual-engine design with Smart Query Router, real-time ingestion pipeline, and production migration path.</p>
         <div style="margin-top:14px" class="pill-row">
           <span class="pill pill-blue">ClickHouse NL→SQL</span>
-          <span class="pill pill-purple">ChromaDB RAG</span>
+          <span class="pill pill-purple">S3 NumPy RAG</span>
           <span class="pill pill-green">Query Router</span>
         </div>
       </div>
@@ -458,7 +458,7 @@
         </div>
         <div class="pipe-box" style="background:#eef5ff;border-color:#b8d4f0;color:#0044aa">
           <div class="icon">📦</div>
-          <div class="label">ChromaDB RAG</div>
+          <div class="label">S3 NumPy RAG</div>
           <div class="sub">Semantic · summarise · explain</div>
         </div>
       </div>
@@ -473,6 +473,80 @@
         <div class="icon">💬</div>
         <div class="label">Streamlit UI</div>
         <div class="sub">Answer + citations</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Data Pipeline -->
+<div style="background:#f8fafd;border-top:1px solid #e8eef6;border-bottom:1px solid #e8eef6;padding:60px 0">
+  <div class="section" style="padding-top:0;padding-bottom:0">
+    <div class="section-title">Document Ingestion</div>
+    <div class="section-heading">Data Pipeline</div>
+    <p class="section-sub">PDFs are automatically detected, extracted, chunked and embedded — no manual steps. Powered by Orkes Conductor orchestrating serverless Lambda steps.</p>
+
+    <div class="pipeline" style="gap:0">
+      <!-- Upload -->
+      <div class="pipe-box" style="background:#eef5ff;border-color:#b8d4f0;color:#0044aa">
+        <div class="icon">📄</div>
+        <div class="label">PDF Upload</div>
+        <div class="sub">S3 / API ingest</div>
+      </div>
+      <div class="pipe-arr">→</div>
+
+      <!-- SQS -->
+      <div class="pipe-box" style="background:#fff8ee;border-color:#f0d8a8;color:#884400">
+        <div class="icon">📬</div>
+        <div class="label">SQS Queue</div>
+        <div class="sub">Pipeline intake</div>
+      </div>
+      <div class="pipe-arr">→</div>
+
+      <!-- EventBridge -->
+      <div class="pipe-box" style="background:#f5eeff;border-color:#ccaaee;color:#552288">
+        <div class="icon">⏱️</div>
+        <div class="label">EventBridge</div>
+        <div class="sub">Drain every 5 min</div>
+      </div>
+      <div class="pipe-arr">→</div>
+
+      <!-- Orkes -->
+      <div class="pipe-box" style="background:#edfaf2;border-color:#a8ddc0;color:#116633">
+        <div class="icon">🎼</div>
+        <div class="label">Orkes DAG</div>
+        <div class="sub">HTTP workflow steps</div>
+      </div>
+      <div class="pipe-arr" style="font-size:14px;display:flex;flex-direction:column;gap:8px;color:#aabbcc;padding:0 6px">
+        <span>→</span><span>→</span><span>→</span>
+      </div>
+
+      <!-- Lambda steps stacked -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="pipe-box" style="background:#fff8ee;border-color:#f0d8a8;color:#884400;min-width:130px">
+          <div class="icon">🔍</div>
+          <div class="label">Detect + Textract</div>
+          <div class="sub">OCR raw text</div>
+        </div>
+        <div class="pipe-box" style="background:#eef5ff;border-color:#b8d4f0;color:#0044aa;min-width:130px">
+          <div class="icon">✂️</div>
+          <div class="label">Chunk + Embed</div>
+          <div class="sub">500-token · Titan 256-dim</div>
+        </div>
+      </div>
+      <div class="pipe-arr">→</div>
+
+      <!-- Outputs stacked -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="pipe-box" style="background:#edfaf2;border-color:#a8ddc0;color:#116633;min-width:120px">
+          <div class="icon">🗄️</div>
+          <div class="label">ClickHouse</div>
+          <div class="sub">Metadata + doc index</div>
+        </div>
+        <div class="pipe-box" style="background:#eef5ff;border-color:#b8d4f0;color:#0044aa;min-width:120px">
+          <div class="icon">📦</div>
+          <div class="label">S3 vectors.npy</div>
+          <div class="sub">Live cache reload</div>
+        </div>
       </div>
     </div>
   </div>
@@ -498,7 +572,7 @@
     </div>
     <div class="card card-blue">
       <div style="font-size:13px;font-weight:700;color:#0044aa;margin-bottom:14px;display:flex;align-items:center;gap:6px">
-        <span>🔍</span> Content Questions → ChromaDB RAG
+        <span>🔍</span> Content Questions → S3 NumPy RAG
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <div style="background:#f0f6ff;border:1px solid #c0d8f8;border-radius:8px;padding:10px 14px;font-size:13px;color:#334455">"Summarise Mathew Little's complaint"</div>
@@ -533,7 +607,7 @@
           <span class="pill pill-teal">ClickHouse Cloud</span>
           <span class="pill pill-teal">ReplacingMergeTree</span>
           <span class="pill pill-teal">NL→SQL Pipeline</span>
-          <span class="pill pill-purple">ChromaDB</span>
+          <span class="pill pill-purple">S3 NumPy Vectors</span>
           <span class="pill pill-purple">Cosine Similarity</span>
         </div>
       </div>
@@ -598,7 +672,7 @@
   <a href="linkedin/architecture.html">Architecture</a> &nbsp;·&nbsp;
   <a href="linkedin/interactions.html">Interactions</a> &nbsp;·&nbsp;
   <a href="backoffice/review.html">Back-office</a> &nbsp;·&nbsp;
-  AWS Bedrock · ClickHouse Cloud · ChromaDB · Streamlit
+  AWS Bedrock · ClickHouse Cloud · S3 NumPy Vectors · Streamlit
 </footer>
 
 </body>
