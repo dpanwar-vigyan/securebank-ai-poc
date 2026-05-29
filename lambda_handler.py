@@ -23,7 +23,7 @@ Pipeline endpoints (Phase 3 — queued, scheduled, controlled throughput):
   POST /pipeline/step/embed      — Orkes HTTP task: Bedrock embeddings
   POST /pipeline/step/s3vec      — Orkes HTTP task: append to S3 vectors (idempotent)
   POST /pipeline/step/meta       — Orkes HTTP task: parse structured metadata
-  POST /pipeline/step/clickhouse — Orkes HTTP task: upsert ClickHouse (idempotent)
+  POST /pipeline/step/store      — Orkes HTTP task: store document metadata (backend-agnostic)
   POST /pipeline/step/complete   — Orkes HTTP task: log completion
 
 Direct Lambda invocation (EventBridge):
@@ -49,7 +49,7 @@ from rag.hitl_client import (
 )
 from rag.pipeline_steps import (
     step_detect, step_textract, step_chunk, step_embed,
-    step_s3vec, step_meta, step_clickhouse, step_complete,
+    step_s3vec, step_meta, step_store_metadata, step_complete,
 )
 from rag.s3_retriever import force_reload as _force_vector_reload
 
@@ -352,7 +352,7 @@ class PipelineMetaRequest(BaseModel):
     doc_type:    str = ""
     customer_id: str = ""
 
-class PipelineClickhouseRequest(BaseModel):
+class PipelineStoreRequest(BaseModel):
     doc_id:   str
     metadata: dict
     s3_key:   str
@@ -693,23 +693,23 @@ def pipeline_step_meta(req: PipelineMetaRequest,
         raise HTTPException(status_code=500, detail=f"Metadata parsing failed: {exc}")
 
 
-@app.post("/pipeline/step/clickhouse")
-def pipeline_step_clickhouse(req: PipelineClickhouseRequest,
-                              x_backoffice_key: str = Header(default="")):
+@app.post("/pipeline/step/store")
+def pipeline_step_store(req: PipelineStoreRequest,
+                        x_backoffice_key: str = Header(default="")):
     """
-    Orkes HTTP task [FORK B]: upsert document metadata into ClickHouse.
+    Orkes HTTP task [FORK B]: store document metadata to analytics backend.
+    Backend driven by ANALYTICS_DB_BACKEND env var (clickhouse | motherduck).
     Idempotent — checks for existing doc_id before inserting.
-    ReplacingMergeTree handles eventual deduplication at the engine level.
     """
     _check_pipeline_auth(x_backoffice_key)
     try:
-        return step_clickhouse(
+        return step_store_metadata(
             doc_id   = req.doc_id,
             metadata = req.metadata,
             s3_key   = req.s3_key,
         )
     except Exception as exc:
-        _pipeline_failure_hitl("clickhouse", req.doc_id, req.s3_key, str(exc))
+        _pipeline_failure_hitl("store_metadata", req.doc_id, req.s3_key, str(exc))
         raise HTTPException(status_code=500, detail=f"ClickHouse upsert failed: {exc}")
 
 

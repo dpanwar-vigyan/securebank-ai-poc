@@ -322,11 +322,10 @@ Return ONLY valid JSON with these fields (use null if not found):
 
 
 # ── Step 4d: store document metadata (FORK Branch B cont.) ───────────────────
-# HTTP endpoint stays /pipeline/step/clickhouse for Orkes compatibility.
-# Backend is driven by ANALYTICS_DB_BACKEND — ClickHouse or MotherDuck,
-# zero Orkes workflow changes needed.
+# HTTP endpoint: /pipeline/step/store (backend-agnostic; renamed from /step/clickhouse in v5).
+# Backend is driven by ANALYTICS_DB_BACKEND — ClickHouse or MotherDuck.
 
-def step_clickhouse(doc_id: str, metadata: dict, s3_key: str) -> dict:
+def step_store_metadata(doc_id: str, metadata: dict, s3_key: str) -> dict:
     db  = get_adapter()
     now = datetime.utcnow()
 

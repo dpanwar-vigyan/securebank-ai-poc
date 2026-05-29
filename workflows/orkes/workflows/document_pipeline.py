@@ -30,8 +30,8 @@ DAG (identical visual shape to V1/V2 — same Orkes UI appearance):
   [generate_embeddings]                           [parse_metadata]
   HTTP → /pipeline/step/embed                  HTTP → /pipeline/step/meta
        │                                                     │
-  [update_s3_vectors]                          [upsert_clickhouse]
-  HTTP → /pipeline/step/s3vec               HTTP → /pipeline/step/clickhouse
+  [update_s3_vectors]                          [store_metadata]
+  HTTP → /pipeline/step/s3vec               HTTP → /pipeline/step/store
   └──────────────────────────────────JOIN──────────────────────┘
                               │
                     pipeline_complete ← HTTP → /pipeline/step/complete
@@ -47,7 +47,7 @@ Inputs (passed by /pipeline/ingest Lambda):
 """
 
 WORKFLOW_NAME    = "askmybank_document_pipeline"
-WORKFLOW_VERSION = 4   # bump from 3 → 4: remove WAIT spot-check (straight-through on success)
+WORKFLOW_VERSION = 5   # bump from 4 → 5: rename /step/clickhouse → /step/store (backend-agnostic)
 
 
 # ── Helper: build an HTTP system task definition ──────────────────────────────
@@ -198,9 +198,9 @@ WORKFLOW_DEF = {
                         timeout_s = 60,
                     ),
                     _http_task(
-                        name = "askmybank_upsert_clickhouse",
-                        ref  = "ch_ref",
-                        path = "/pipeline/step/clickhouse",
+                        name = "askmybank_store_metadata",
+                        ref  = "store_ref",
+                        path = "/pipeline/step/store",
                         body = {
                             "doc_id":   "${detect_ref.output.response.body.doc_id}",
                             "metadata": "${meta_ref.output.response.body.structured_metadata}",
@@ -217,7 +217,7 @@ WORKFLOW_DEF = {
             "name":              "join_parallel",
             "taskReferenceName": "join_ref",
             "type":              "JOIN",
-            "joinOn":            ["s3vec_ref", "ch_ref"],
+            "joinOn":            ["s3vec_ref", "store_ref"],
         },
 
         # ── 5. HTTP: Mark pipeline complete ──────────────────────────────────
@@ -230,7 +230,7 @@ WORKFLOW_DEF = {
             body = {
                 "doc_id":        "${detect_ref.output.response.body.doc_id}",
                 "vector_count":  "${s3vec_ref.output.response.body.vectors_added}",
-                "ch_inserted":   "${ch_ref.output.response.body.rows_inserted}",
+                "ch_inserted":   "${store_ref.output.response.body.rows_inserted}",
                 "source_system": "${workflow.input.source_system}",
             },
         ),
