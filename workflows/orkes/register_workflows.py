@@ -38,7 +38,7 @@ TASK_NAMES = [
     "askmybank_generate_embeddings",
     "askmybank_update_s3_vectors",
     "askmybank_parse_metadata",
-    "askmybank_upsert_clickhouse",
+    "askmybank_store_metadata",
     "askmybank_pipeline_complete",
     # Pipeline v2 INLINE task (registered automatically by Orkes as INLINE type)
     # "askmybank_detect_doc_type_inline",  ← INLINE/HTTP tasks don't need SIMPLE defs
