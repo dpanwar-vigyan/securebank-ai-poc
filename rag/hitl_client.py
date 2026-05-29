@@ -21,12 +21,9 @@ import urllib.parse
 import uuid
 from datetime import datetime
 
-import clickhouse_connect
 import rag.config  # noqa: F401 — loads .env + st.secrets into os.environ
+from rag.db_adapters import get_adapter, AnalyticsDBAdapter
 
-CH_HOST          = os.getenv("CLICKHOUSE_HOST")
-CH_USER          = os.getenv("CLICKHOUSE_USER")
-CH_PASS          = os.getenv("CLICKHOUSE_PASSWORD")
 ORKES_API_URL    = os.getenv("ORKES_API_URL", "").rstrip("/")
 ORKES_KEY_ID     = os.getenv("ORKES_KEY_ID", "")
 ORKES_KEY_SECRET = os.getenv("ORKES_KEY_SECRET", "")
@@ -65,28 +62,23 @@ class HITLClient:
     """
 
     def __init__(self):
-        self._ch = None
+        self._db: AnalyticsDBAdapter | None = None
         self._available = False
         self._init_attempted = False
 
     def _get_ch(self):
-        """Lazy ClickHouse connection — connects on first call."""
+        """Lazy DB connection — backend driven by ANALYTICS_DB_BACKEND env var."""
         if not self._init_attempted:
             self._init_attempted = True
-            if not all([CH_HOST, CH_USER, CH_PASS]):
-                print("HITLClient: ClickHouse credentials missing")
-                return None
+            backend = os.getenv("ANALYTICS_DB_BACKEND", "clickhouse")
             try:
-                self._ch = clickhouse_connect.get_client(
-                    host=CH_HOST, user=CH_USER, password=CH_PASS,
-                    secure=True, connect_timeout=8, send_receive_timeout=30,
-                )
-                self._ch.ping()
+                self._db = get_adapter()
+                self._db.ping()
                 self._available = True
-                print(f"HITLClient: connected to {CH_HOST}")
+                print(f"HITLClient: connected via {backend} adapter")
             except Exception as exc:
                 print(f"HITLClient: connection failed ({exc})")
-        return self._ch if self._available else None
+        return self._db if self._available else None
 
     # ── Create ticket ──────────────────────────────────────────────────────────
     def create_ticket(

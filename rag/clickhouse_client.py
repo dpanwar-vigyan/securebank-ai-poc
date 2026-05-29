@@ -10,8 +10,8 @@ import re
 import time
 
 import boto3
-import clickhouse_connect
 import rag.config  # noqa: F401 — loads .env + st.secrets into os.environ
+from rag.db_adapters import get_adapter
 
 # Module-level SQL cache — persists for the lifetime of the Streamlit process
 # Key: normalised question string  Value: generated SQL
@@ -20,11 +20,9 @@ _SQL_CACHE: dict[str, str] = {}
 # ---------------------------------------------------------------------------
 # Config  (os.environ already populated by rag.config on import)
 # ---------------------------------------------------------------------------
-CH_HOST     = os.getenv("CLICKHOUSE_HOST")
-CH_USER     = os.getenv("CLICKHOUSE_USER")
-CH_PASS     = os.getenv("CLICKHOUSE_PASSWORD")
-LLM_MODEL   = os.getenv("LLM_MODEL", "us.amazon.nova-lite-v1:0")
-AWS_REGION  = os.getenv("BEDROCK_REGION", "us-east-1")
+LLM_MODEL  = os.getenv("LLM_MODEL", "us.amazon.nova-lite-v1:0")
+AWS_REGION = os.getenv("BEDROCK_REGION", "us-east-1")
+DB_BACKEND = os.getenv("ANALYTICS_DB_BACKEND", "clickhouse").lower()
 
 # ---------------------------------------------------------------------------
 # Schema context injected into every NL→SQL prompt
@@ -91,8 +89,38 @@ Columns:
   ingested_at     DateTime
 """
 
-NL_TO_SQL_PROMPT = f"""You are a ClickHouse SQL expert for SecureBank PLC's banking document database.
-Generate a single valid ClickHouse SQL SELECT query based on the user's question.
+# ── Dialect-specific date functions ──────────────────────────────────────────
+# ClickHouse uses toYear() / formatDateTime(); DuckDB uses YEAR() / strftime()
+_DIALECT_RULES = {
+    "clickhouse": """\
+- Use ClickHouse SQL syntax (not MySQL/PostgreSQL)
+- For year extraction use: toYear(date_column)
+- For month: formatDateTime(date_column, '%Y-%m')
+- When user says "each year" or "per year" for cases: GROUP BY toYear(filed_date)
+- When user says "each year" for statements: GROUP BY toYear(statement_date)""",
+
+    "duckdb": """\
+- Use DuckDB SQL syntax (standard SQL, no ClickHouse-specific functions)
+- For year extraction use: YEAR(date_column)
+- For month: strftime(date_column, '%Y-%m')
+- When user says "each year" or "per year" for cases: GROUP BY YEAR(filed_date)
+- When user says "each year" for statements: GROUP BY YEAR(statement_date)
+- Do NOT use FINAL keyword — tables have no duplicates""",
+
+    "motherduck": """\
+- Use DuckDB SQL syntax (standard SQL, no ClickHouse-specific functions)
+- For year extraction use: YEAR(date_column)
+- For month: strftime(date_column, '%Y-%m')
+- When user says "each year" or "per year" for cases: GROUP BY YEAR(filed_date)
+- When user says "each year" for statements: GROUP BY YEAR(statement_date)
+- Do NOT use FINAL keyword — tables have no duplicates""",
+}
+
+_dialect_name = "ClickHouse" if DB_BACKEND == "clickhouse" else "DuckDB"
+_dialect_rules = _DIALECT_RULES.get(DB_BACKEND, _DIALECT_RULES["clickhouse"])
+
+NL_TO_SQL_PROMPT = f"""You are a {_dialect_name} SQL expert for SecureBank PLC's banking document database.
+Generate a single valid {_dialect_name} SQL SELECT query based on the user's question.
 
 {SCHEMA}
 
@@ -101,13 +129,10 @@ Important date field usage:
 - For eStatements: use statement_date
 - For AccountMaintenance: use request_date
 - NEVER use ingested_at for business date queries — it is a system timestamp only
-- When user says "each year" or "per year" for cases: GROUP BY toYear(filed_date)
-- When user says "each year" for statements: GROUP BY toYear(statement_date)
+
+{_dialect_rules}
 
 Rules:
-- Use ClickHouse SQL syntax (not MySQL/PostgreSQL)
-- For year extraction use: toYear(date_column)
-- For month: formatDateTime(date_column, '%Y-%m')
 - Always ORDER BY for aggregations (highest count first unless user specifies)
 - LIMIT 50 unless user asks for all
 - Never use UPDATE, DELETE, INSERT, DROP, ALTER, CREATE
@@ -151,20 +176,14 @@ class ClickHouseNLClient:
         self._connect()
 
     def _connect(self):
-        """Attempt to connect to ClickHouse — sets self.available = False on any failure."""
-        if not all([CH_HOST, CH_USER, CH_PASS]):
-            print("ClickHouse: credentials missing — aggregation will use ChromaDB fallback")
-            return
+        """Connect via configured backend adapter (ClickHouse or DuckDB/MotherDuck)."""
         try:
-            self.ch = clickhouse_connect.get_client(
-                host=CH_HOST, user=CH_USER, password=CH_PASS,
-                secure=True, connect_timeout=8, send_receive_timeout=30,
-            )
-            self.ch.ping()          # verify connection is live
+            self.ch = get_adapter()
+            self.ch.ping()
             self.available = True
-            print("ClickHouse connected —", CH_HOST)
+            print(f"Analytics DB connected — backend={DB_BACKEND}")
         except Exception as exc:
-            print(f"ClickHouse unavailable ({exc}) — aggregation will use ChromaDB fallback")
+            print(f"Analytics DB unavailable ({exc}) — aggregation disabled")
 
     def _generate_sql(self, question: str) -> tuple[str, bool]:
         """Use Nova Lite to convert NL question → ClickHouse SQL.
@@ -220,9 +239,9 @@ class ClickHouseNLClient:
             # 1. Generate SQL (cache checked inside)
             sql, cache_hit = self._generate_sql(question)
 
-            # 2. Execute against ClickHouse
+            # 2. Execute against analytics DB (ClickHouse or DuckDB)
             result    = self.ch.query(sql)
-            rows      = result.result_set
+            rows      = result.result_rows
             col_names = result.column_names
 
             # 3. Format answer
