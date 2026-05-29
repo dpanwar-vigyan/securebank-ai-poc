@@ -24,7 +24,7 @@ from datetime import datetime
 
 import boto3
 import numpy as np
-import clickhouse_connect
+from rag.db_adapters import get_adapter
 
 # ── Environment ───────────────────────────────────────────────────────────────
 BEDROCK_REGION  = os.getenv("BEDROCK_REGION", "us-east-1")
@@ -33,21 +33,11 @@ EMBED_MODEL     = os.getenv("EMBED_MODEL", "amazon.titan-embed-text-v2:0")
 S3_VECTORS_BUCKET = os.getenv("S3_VECTORS_BUCKET", "askmybank-vectors")
 SOURCE_BUCKET   = os.getenv("S3_SOURCE_BUCKET", "banking-docs-poc-qahftr")  # ← bug fix
 
-CH_HOST = os.getenv("CLICKHOUSE_HOST")
-CH_USER = os.getenv("CLICKHOUSE_USER")
-CH_PASS = os.getenv("CLICKHOUSE_PASSWORD")
-
 CHUNK_SIZE    = 400
 CHUNK_OVERLAP = 60
 
 
-# ── AWS / DB clients ──────────────────────────────────────────────────────────
-
-def _ch():
-    return clickhouse_connect.get_client(
-        host=CH_HOST, user=CH_USER, password=CH_PASS,
-        secure=True, connect_timeout=8, send_receive_timeout=30,
-    )
+# ── AWS clients ───────────────────────────────────────────────────────────────
 
 def _bedrock():
     return boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
@@ -331,23 +321,28 @@ Return ONLY valid JSON with these fields (use null if not found):
         }
 
 
-# ── Step 4d: upsert_clickhouse (FORK Branch B cont.) ─────────────────────────
+# ── Step 4d: store document metadata (FORK Branch B cont.) ───────────────────
+# HTTP endpoint stays /pipeline/step/clickhouse for Orkes compatibility.
+# Backend is driven by ANALYTICS_DB_BACKEND — ClickHouse or MotherDuck,
+# zero Orkes workflow changes needed.
 
 def step_clickhouse(doc_id: str, metadata: dict, s3_key: str) -> dict:
-    ch  = _ch()
+    db  = get_adapter()
     now = datetime.utcnow()
 
     # ── IDEMPOTENCY GUARD ─────────────────────────────────────────────────────
-    # ReplacingMergeTree deduplicates eventually but not immediately.
-    # Explicit check prevents double-counting in analytics during the merge window.
+    # DuckDB: INSERT OR REPLACE handles this at DB level (PRIMARY KEY on doc_id).
+    # ClickHouse: ReplacingMergeTree deduplicates eventually — explicit check
+    # prevents double-counting in analytics during the merge window.
     try:
-        existing = ch.query(
-            "SELECT count() as cnt FROM banking_docs.documents WHERE doc_id = {doc_id:String}",
+        existing = db.query(
+            "SELECT COUNT(*) as cnt FROM banking_docs.documents WHERE doc_id = {doc_id:String}",
             parameters={"doc_id": doc_id},
         )
         count = existing.result_rows[0][0] if existing.result_rows else 0
         if count > 0:
-            print(f"[clickhouse] ⚡ {doc_id} already in documents table — skipping (idempotent)")
+            backend = os.getenv("ANALYTICS_DB_BACKEND", "clickhouse")
+            print(f"[pipeline_store] ⚡ {doc_id} already in documents table — skipping (idempotent) [{backend}]")
             return {
                 "rows_inserted": 0,
                 "doc_id":        doc_id,
@@ -356,14 +351,13 @@ def step_clickhouse(doc_id: str, metadata: dict, s3_key: str) -> dict:
                 "reason":        "already_exists",
             }
     except Exception as exc:
-        # If the check itself fails, proceed with insert (ReplacingMergeTree handles it)
-        print(f"[clickhouse] Idempotency check failed ({exc}) — proceeding with insert")
+        print(f"[pipeline_store] Idempotency check failed ({exc}) — proceeding with insert")
 
     def safe(key, default=""):
         val = metadata.get(key, default)
         return val if val is not None else default
 
-    ch.insert(
+    db.insert(
         table="banking_docs.documents",
         data=[[
             safe("doc_id", doc_id),
@@ -400,7 +394,8 @@ def step_clickhouse(doc_id: str, metadata: dict, s3_key: str) -> dict:
         ],
     )
 
-    print(f"[clickhouse] ✅ {doc_id} inserted into banking_docs.documents")
+    backend = os.getenv("ANALYTICS_DB_BACKEND", "clickhouse")
+    print(f"[pipeline_store] ✅ {doc_id} inserted into banking_docs.documents [{backend}]")
     return {"rows_inserted": 1, "doc_id": doc_id, "table": "banking_docs.documents"}
 
 
