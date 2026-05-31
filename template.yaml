@@ -97,6 +97,28 @@ Parameters:
     NoEcho: true
     Description: Temporal Cloud API key — used to authenticate workflow signals (HITL)
 
+  MotherDuckToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: MotherDuck access token — leave blank to use ClickHouse backend
+
+  MotherDuckDb:
+    Type: String
+    Default: "askmybank"
+    Description: MotherDuck database name
+
+  AnalyticsDbBackend:
+    Type: String
+    Default: "clickhouse"
+    AllowedValues: [clickhouse, motherduck, duckdb]
+    Description: Analytics DB backend — flip to motherduck to switch without redeploy
+
+  PipelineStepDelayS:
+    Type: Number
+    Default: 0
+    Description: Debug only — seconds each pipeline step sleeps (0 = disabled, use 15 for screen recording)
+
   ClickHousePassword:
     Type: String
     Default: ""
@@ -110,7 +132,7 @@ Parameters:
 
 Globals:
   Function:
-    Runtime: python3.11
+    # Runtime omitted — function uses PackageType: Image (handler defined in Dockerfile CMD)
     # 870s (14.5 min) — Textract async jobs can take up to 2 min;
     # pipeline step endpoints poll, so Lambda must outlast the poll window.
     # RAG/chat routes finish in <5s — this only affects billing when steps are running.
@@ -133,12 +155,16 @@ Globals:
         LANGFUSE_HOST:        !Ref LangfuseHost
         APPIAN_BASE_URL:      !Ref AppianBaseUrl
         APPIAN_API_KEY:       !Ref AppianApiKey
-        TEMPORAL_ADDRESS:     !Ref TemporalAddress
-        TEMPORAL_NAMESPACE:   !Ref TemporalNamespace
-        TEMPORAL_API_KEY:     !Ref TemporalApiKey
-        HITL_SQS_QUEUE_URL:   !Ref HITLQueue
-        PIPELINE_QUEUE_URL:   !Ref PipelineQueue
-        PIPELINE_BATCH_SIZE:  !Ref PipelineBatchSize
+        TEMPORAL_ADDRESS:      !Ref TemporalAddress
+        TEMPORAL_NAMESPACE:    !Ref TemporalNamespace
+        TEMPORAL_API_KEY:      !Ref TemporalApiKey
+        MOTHERDUCK_TOKEN:      !Ref MotherDuckToken
+        MOTHERDUCK_DB:         !Ref MotherDuckDb
+        ANALYTICS_DB_BACKEND:  !Ref AnalyticsDbBackend
+        PIPELINE_STEP_DELAY_S: !Ref PipelineStepDelayS
+        HITL_SQS_QUEUE_URL:    !Ref HITLQueue
+        PIPELINE_QUEUE_URL:    !Ref PipelineQueue
+        PIPELINE_BATCH_SIZE:   !Ref PipelineBatchSize
 
 Resources:
 
@@ -146,12 +172,13 @@ Resources:
   AskMyBankFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: makefile   # uses Makefile target build-AskMyBankFunction
+      DockerTag: latest
+      DockerContext: .
+      Dockerfile: Dockerfile
     Properties:
       FunctionName: !Sub "askmybank-api-${Stage}"
-      CodeUri: .
-      Handler: lambda_handler.handler
-      Description: AskMyBank RAG API — S3 vectors + Bedrock + ClickHouse
+      PackageType: Image
+      Description: AskMyBank RAG API — S3 vectors + Bedrock + ClickHouse/MotherDuck
       Policies:
         # Read vectors from S3
         - S3ReadPolicy:
