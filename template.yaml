@@ -132,7 +132,7 @@ Parameters:
 
 Globals:
   Function:
-    # Runtime omitted — function uses PackageType: Image (handler defined in Dockerfile CMD)
+    Runtime: python3.11
     # 870s (14.5 min) — Textract async jobs can take up to 2 min;
     # pipeline step endpoints poll, so Lambda must outlast the poll window.
     # RAG/chat routes finish in <5s — this only affects billing when steps are running.
@@ -172,12 +172,11 @@ Resources:
   AskMyBankFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      DockerTag: latest
-      DockerContext: .
-      Dockerfile: Dockerfile
+      BuildMethod: makefile   # TODO: switch to DockerTag/DockerContext/Dockerfile once Docker Desktop is installed
     Properties:
       FunctionName: !Sub "askmybank-api-${Stage}"
-      PackageType: Image
+      CodeUri: .
+      Handler: lambda_handler.handler
       Description: AskMyBank RAG API — S3 vectors + Bedrock + ClickHouse/MotherDuck
       Policies:
         # Read vectors from S3
