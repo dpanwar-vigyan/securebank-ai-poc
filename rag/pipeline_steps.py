@@ -36,6 +36,17 @@ SOURCE_BUCKET   = os.getenv("S3_SOURCE_BUCKET", "banking-docs-poc-qahftr")  # �
 CHUNK_SIZE    = 400
 CHUNK_OVERLAP = 60
 
+# ── Debug delay (screen recording / demo) ─────────────────────────────────────
+# Set PIPELINE_STEP_DELAY_S=15 in Lambda env for a slow-motion demo run.
+# Default 0 → no delay in production.
+_STEP_DELAY_S = int(os.getenv("PIPELINE_STEP_DELAY_S", "0"))
+
+def _debug_pause(step_name: str) -> None:
+    """Sleep at the start of a step so Orkes UI is visible during screen recording."""
+    if _STEP_DELAY_S > 0:
+        print(f"[debug-pause] {step_name}: sleeping {_STEP_DELAY_S}s (PIPELINE_STEP_DELAY_S={_STEP_DELAY_S})")
+        time.sleep(_STEP_DELAY_S)
+
 
 # ── AWS clients ───────────────────────────────────────────────────────────────
 
@@ -54,6 +65,7 @@ def _textract():
 # This Python function is kept for V1 compatibility and local testing only.
 
 def step_detect(s3_key: str, doc_type: str = "", customer_id: str = "") -> dict:
+    _debug_pause("detect")
     key_lower = s3_key.lower()
     if not doc_type:
         if "dispute" in key_lower or "dsp" in key_lower:
@@ -94,6 +106,7 @@ def step_detect(s3_key: str, doc_type: str = "", customer_id: str = "") -> dict:
 # vectors bucket. The vectors bucket holds vectors.npy + metadata.json.
 
 def step_textract(s3_key: str, doc_id: str) -> dict:
+    _debug_pause("textract")
     tx = _textract()
 
     resp = tx.start_document_text_detection(
@@ -141,6 +154,7 @@ def step_textract(s3_key: str, doc_id: str) -> dict:
 # ── Step 3: chunk_text ────────────────────────────────────────────────────────
 
 def step_chunk(raw_text: str, doc_id: str, doc_type: str, page_count: int = 1) -> dict:
+    _debug_pause("chunk")
     sentences   = re.split(r'(?<=[.!?])\s+', raw_text.strip())
     chunks      = []
     current     = []
@@ -177,6 +191,7 @@ def step_chunk(raw_text: str, doc_id: str, doc_type: str, page_count: int = 1) -
 # ── Step 4a: generate_embeddings (FORK Branch A) ──────────────────────────────
 
 def step_embed(chunks: list, doc_id: str) -> dict:
+    _debug_pause("embed")
     bedrock    = _bedrock()
     embeddings = []
 
@@ -200,6 +215,7 @@ def step_embed(chunks: list, doc_id: str) -> dict:
 # ── Step 4b: update_s3_vectors (FORK Branch A cont.) ─────────────────────────
 
 def step_s3vec(doc_id: str, embeddings: list, chunks: list, metadata: dict) -> dict:
+    _debug_pause("s3vec")
     s3 = _s3()
 
     # ── Download existing metadata.json first (needed for idempotency check) ──
@@ -263,6 +279,7 @@ def step_s3vec(doc_id: str, embeddings: list, chunks: list, metadata: dict) -> d
 # ── Step 4c: parse_metadata (FORK Branch B) ───────────────────────────────────
 
 def step_meta(raw_text: str, doc_id: str, doc_type: str, customer_id: str) -> dict:
+    _debug_pause("meta")
     prompt = f"""Extract structured metadata from this banking document.
 
 Document type: {doc_type}
@@ -326,6 +343,7 @@ Return ONLY valid JSON with these fields (use null if not found):
 # Backend is driven by ANALYTICS_DB_BACKEND — ClickHouse or MotherDuck.
 
 def step_store_metadata(doc_id: str, metadata: dict, s3_key: str) -> dict:
+    _debug_pause("store")
     db  = get_adapter()
     now = datetime.utcnow()
 
@@ -401,6 +419,7 @@ def step_store_metadata(doc_id: str, metadata: dict, s3_key: str) -> dict:
 # ── Step 5: pipeline_complete ─────────────────────────────────────────────────
 
 def step_complete(doc_id: str, vector_count: int, ch_inserted: int, source_system: str) -> dict:
+    _debug_pause("complete")
     completed_at = datetime.utcnow().isoformat()
     print(f"[complete] ✅ {doc_id} | {vector_count} vectors | CH rows: {ch_inserted} | src: {source_system}")
     return {
