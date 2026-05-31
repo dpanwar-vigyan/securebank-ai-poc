@@ -13,6 +13,5 @@ build-AskMyBankFunction:
 		-t $(ARTIFACTS_DIR)
 	cp lambda_handler.py $(ARTIFACTS_DIR)/
 	cp -r rag $(ARTIFACTS_DIR)/rag
-	mkdir -p $(ARTIFACTS_DIR)/workflows/temporal
-	cp workflows/temporal/config.py $(ARTIFACTS_DIR)/workflows/temporal/config.py
-	touch $(ARTIFACTS_DIR)/workflows/__init__.py $(ARTIFACTS_DIR)/workflows/temporal/__init__.py
+	cp -r workflows/temporal $(ARTIFACTS_DIR)/workflows/temporal
+	touch $(ARTIFACTS_DIR)/workflows/__init__.py

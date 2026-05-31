@@ -12,10 +12,9 @@ RUN pip install --no-cache-dir -r requirements-lambda.txt && \
 COPY lambda_handler.py .
 COPY rag/ ./rag/
 
-# Copy only the Temporal config needed at runtime (not full workflows dir)
-RUN mkdir -p workflows/temporal
-COPY workflows/temporal/config.py ./workflows/temporal/config.py
-RUN touch workflows/__init__.py workflows/temporal/__init__.py
+# Copy entire temporal workflows subtree — hitl_client imports workflow + signal types
+COPY workflows/temporal/ ./workflows/temporal/
+RUN touch workflows/__init__.py
 
 # Lambda entry point
 CMD ["lambda_handler.handler"]
