@@ -75,6 +75,9 @@ if not TOKEN:
 
 import duckdb
 print(f"\nConnecting to MotherDuck: md:{DB_NAME}...")
+root = duckdb.connect(f"md:?motherduck_token={TOKEN}")
+root.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
+root.close()
 con = duckdb.connect(f"md:{DB_NAME}?motherduck_token={TOKEN}")
 con.execute("SELECT 1")
 print("✅ Connected\n")
@@ -83,6 +86,9 @@ for table_name, (fname, col_names, row_count) in exported.items():
     short = table_name.split(".")[-1]
     full  = f"banking_docs.{short}"
     print(f"Importing {full} from {fname}...")
+    if row_count == 0:
+        print(f"  → {full}: 0 rows (skipped empty table)")
+        continue
     # DuckDB can read CSV directly — fast bulk load
     con.execute(f"""
         INSERT OR REPLACE INTO {full}
