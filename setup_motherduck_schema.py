@@ -30,6 +30,11 @@ if not TOKEN:
     print("ERROR: MOTHERDUCK_TOKEN not set — add it to .env or pass as env var")
     sys.exit(1)
 
+# Connect to root first so we can CREATE DATABASE IF NOT EXISTS
+root = duckdb.connect(f"md:?motherduck_token={TOKEN}")
+root.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
+root.close()
+
 con = duckdb.connect(f"md:{DB_NAME}?motherduck_token={TOKEN}")
 con.execute("SELECT 1")
 print(f"✅ Connected to MotherDuck: md:{DB_NAME}\n")

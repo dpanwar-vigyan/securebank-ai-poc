@@ -97,7 +97,10 @@ class DuckDBAdapter(AnalyticsDBAdapter):
         token   = os.getenv("MOTHERDUCK_TOKEN", "")
         db_name = os.getenv("MOTHERDUCK_DB", "askmybank")
         if token:
-            # MotherDuck cloud
+            # MotherDuck cloud: connect to root first, create DB if needed, then reconnect
+            root = duckdb.connect(f"md:?motherduck_token={token}")
+            root.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+            root.close()
             self._con = duckdb.connect(f"md:{db_name}?motherduck_token={token}")
         else:
             path = os.getenv("DUCKDB_PATH", ":memory:")
