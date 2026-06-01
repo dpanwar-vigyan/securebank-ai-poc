@@ -1,6 +1,10 @@
 # ── Secrets (NEVER commit these) ─────────────────────────────────────────────
 .env
 .streamlit/secrets.toml
+samconfig.toml          # contains real API keys / JWTs — never push
+
+# ── Exported data (local only) ────────────────────────────────────────────────
+clickhouse_export/
 
 # ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
