@@ -1,0 +1,91 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LINKEDIN POST — AI Accelerators + Orkes + Video
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HOOK (first 2 lines — must stop the scroll):
+─────────────────────────────────────────
+Banks want AI at the frontline. Fast.
+But any shortcut through a core system poses a multitude of risks on regulated processes.
+
+─────────────────────────────────────────
+FULL POST:
+─────────────────────────────────────────
+
+Banks want AI at the frontline. Fast.
+But any shortcut through a core system poses a multitude of risks on regulated processes.
+
+The answer isn't to slow down — it's to decouple.
+
+I've built a set of production-ready AI accelerators for regulated industries that sit completely outside your core systems and connect to them safely through an Ethical Wall — APIs, events and webhooks only. No core system is ever modified.
+
+Here's what's running in the demo 👇
+
+💬 AI Document Q&A — bankers ask questions in plain English, answers grounded in their own documents. Powered by AWS Bedrock.
+
+⚙️ Intelligent Document Pipeline — PDF lands in S3, Orkes Conductor orchestrates the full DAG: classify → extract → chunk → embed → store. Every step is a serverless Lambda. Fully observable, fully resumable.
+
+🧑‍💼 Human-in-the-Loop Decisions — banker approves, escalates or reopens a case. Temporal workflows hold state for days waiting on a human signal. The AI resumes exactly where it left off.
+
+The architecture principle is simple:
+→ Core systems (Temenos, Appian, ServiceNow, Salesforce) stay frozen
+→ AI infrastructure moves fast on the outside
+→ Orkes and Temporal stitch it together durably
+
+This isn't just a banking story. Any regulated industry — insurance, healthcare, government, legal — faces the same challenge. Move fast on AI without breaking the systems you can't afford to touch.
+
+These accelerators are production-ready. I'm looking to partner with organisations ready to move.
+
+📩 Contact me to confidently bring AI to life in your regulated industry — without touching the systems you can't afford to break.
+
+🌐 Live demo: askmybank.ai
+
+—
+
+Tagging people worth following in this space 👇
+@Orkes — if you haven't seen what durable DAG orchestration looks like in a regulated pipeline, this is worth a look
+@Temporal Technologies — HITL workflows that survive days of human latency without losing state
+
+—
+
+#AIAccelerators #RegulatedIndustries #BankingAI #FinancialServices
+#OrkesCloud #TemporalIO #AWSBedrock #DurableOrchestration
+#HITL #HumanInTheLoop #EnterpriseAI #AIArchitecture
+#Decoupling #EthicalWall #DigitalTransformation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHO TO TAG (LinkedIn @ mentions)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+COMPANIES (tag in post body):
+• Orkes                → search "Orkes" on LinkedIn (company page)
+• Temporal Technologies → search "Temporal Technologies" on LinkedIn
+• Amazon Web Services  → tag if you want AWS visibility (optional)
+
+INDIVIDUALS (tag if you want direct attention):
+• Viren Baraiya        → CEO of Orkes — most likely to reshare a real use case
+• Boney Sekh           → CTO of Orkes
+• Maxim Fateev         → CEO/co-founder of Temporal
+• Samar Abbas          → CTO/co-founder of Temporal
+
+STRATEGY NOTE:
+→ Tag Orkes + Viren Baraiya — this is your Orkes partnership play.
+   A real production use case in banking is exactly what they want to amplify.
+→ Tag Temporal but don't over-invest — Temporal is less commercially focused
+   on SI partners right now vs Orkes.
+→ Do NOT tag AWS in the body — it dilutes the Orkes signal. Add it only in hashtags.
+→ Post the video natively on LinkedIn (don't link to YouTube) —
+   native video gets 3-5x more reach.
+
+FIRST COMMENT (post immediately after):
+→ Pin this as your first comment to keep the post body clean:
+
+"🏗️ Architecture diagram: https://askmybank.ai/linkedin/architecture-diagram.html
+🔴 Live demo: https://askmybank.ai/chat.html
+💻 GitHub: https://github.com/dpanwar-vigyan/securebank-ai-poc"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TIMING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Best days:   Tuesday, Wednesday, Thursday
+Best time:   8:00am – 10:00am AEST
+Avoid:       Monday morning, Friday afternoon, weekends
