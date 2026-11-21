@@ -119,6 +119,9 @@
   .source-card-id { font-weight:700; color:#003366; font-size:13px; }
   .source-card-meta { color:#556677; margin-top:2px; font-size:12px; }
   .source-card-summary { color:#556677; margin-top:4px; font-size:12px; line-height:1.5; }
+  .source-card-link { display:inline-block; margin-top:6px; font-size:12px; font-weight:600; color:#0061d5; text-decoration:none; }
+  .source-card-link:hover { text-decoration:underline; }
+  .source-card-version { font-weight:400; color:#778899; font-size:11px; }
 
   /* ── Filter badges ── */
   .filter-badges { margin-top:6px; display:flex; flex-wrap:wrap; gap:5px; }
@@ -489,8 +492,17 @@
 </div>
 
 <script>
-const API_URL  = 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com/ask';
-const HITL_URL = 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com';
+// ?pattern=box → Box content store + Temporal pipeline stack; default → S3 + Orkes stack
+const BOX_PATTERN = new URLSearchParams(location.search).get('pattern') === 'box';
+const API_BASE = BOX_PATTERN
+  ? 'https://5kgrkt1kdk.execute-api.us-east-1.amazonaws.com'
+  : 'https://r6v15i892m.execute-api.us-east-1.amazonaws.com';
+const API_URL  = `${API_BASE}/ask`;
+const HITL_URL = API_BASE;
+if (BOX_PATTERN) {
+  document.querySelector('.nav-badge').textContent = 'BOX + TEMPORAL';
+  document.title = 'AskMyBank.ai — Box + Temporal';
+}
 const PASSWORDS = ['SecureBank@2025', 'Demo123'];
 const IT_EMAIL = 'dinesh.s.panwar@gmail.com';
 
@@ -720,6 +732,7 @@ function appendMessage(role, content, extra, elapsedMs, question) {
           <div class="source-card-id">${escHtml(id)} — ${escHtml(s.doc_type||'')}</div>
           <div class="source-card-meta">👤 ${escHtml(s.customer_name||'')} &nbsp;|&nbsp; 🏢 ${escHtml(s.branch_name||'')}</div>
           <div class="source-card-summary">${escHtml((s.case_summary||'').slice(0,120))}${(s.case_summary||'').length>120?'…':''}</div>
+          ${/^https:\/\/app\.box\.com\/file\/\d+$/.test(s.source_uri||'') ? `<a class="source-card-link" href="${escHtml(s.source_uri)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open in Box ↗${s.box_file_version_id ? ` <span class="source-card-version">v${escHtml(s.box_file_version_id)}</span>` : ''}</a>` : ''}
         </div>`;
       }).join('');
       body += expandable(`📄 ${extra.sources.length} source document(s)`, cards);
