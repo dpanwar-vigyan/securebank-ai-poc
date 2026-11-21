@@ -37,7 +37,7 @@ from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from pydantic import BaseModel, field_validator
@@ -47,11 +47,14 @@ from rag.hitl_client import (
     HITLClient, HITLUnavailableError, HITLNotFoundError,
     TEMPORAL_WORKFLOWS,
 )
+from rag.box_client import file_event, verify_webhook
 from rag.pipeline_steps import (
     step_detect, step_textract, step_chunk, step_embed,
     step_s3vec, step_meta, step_store_metadata, step_complete,
+    step_box_extract,
 )
 from rag.s3_retriever import force_reload as _force_vector_reload
+from workflows.temporal.box_pipeline import TASK_QUEUE as BOX_TASK_QUEUE, WORKFLOW_NAME as BOX_WORKFLOW
 
 # ── SQS client (shared — HITL queue + Pipeline intake queue) ─────────────────
 _sqs              = boto3.client("sqs", region_name=os.getenv("AWS_REGION", "us-east-1"))
@@ -736,6 +739,74 @@ def pipeline_step_complete(req: PipelineCompleteRequest,
     return result
 
 
+# ── Box + Temporal pattern ───────────────────────────────────────────────────
+# Box webhook (FILE.UPLOADED) → start a Temporal workflow. The Fargate worker runs
+# each step by invoking this Lambda directly ({"source": "pipeline_step"} below).
+
+async def _start_box_pipeline(file_id: str, version_id: str, file_name: str) -> dict:
+    from temporalio.exceptions import WorkflowAlreadyStartedError
+    from workflows.temporal.config import get_client
+
+    workflow_id = f"box-{file_id}-v{version_id or 'latest'}"
+    client = await get_client()
+    try:
+        await client.start_workflow(
+            BOX_WORKFLOW,
+            {"file_id": file_id, "version_id": version_id, "file_name": file_name},
+            id=workflow_id,
+            task_queue=BOX_TASK_QUEUE,
+        )
+        print(f"[box] started {workflow_id} for {file_name}")
+        return {"status": "started", "workflow_id": workflow_id}
+    except WorkflowAlreadyStartedError:
+        return {"status": "duplicate", "workflow_id": workflow_id}
+
+
+@app.post("/box/webhook")
+async def box_webhook(request: Request):
+    """Box webhook target — signature-verified, starts one workflow per file version."""
+    body = await request.body()
+    if not verify_webhook(body, dict(request.headers)):
+        raise HTTPException(status_code=401, detail="Invalid Box webhook signature")
+    event = file_event(json.loads(body))
+    if not event or event[0] != "FILE.UPLOADED":
+        return {"status": "ignored"}
+    _, file_id, version_id, name = event
+    return await _start_box_pipeline(file_id, version_id, name)
+
+
+class BoxIngestRequest(BaseModel):
+    file_id:    str
+    version_id: str = ""
+
+
+@app.post("/box/ingest")
+async def box_ingest(req: BoxIngestRequest, x_backoffice_key: str = Header(default="")):
+    """Manual trigger (retry or backfill) for one Box file."""
+    _check_pipeline_auth(x_backoffice_key)
+    return await _start_box_pipeline(req.file_id, req.version_id, "")
+
+
+def _run_pipeline_step(step: str, args: dict) -> dict:
+    if step == "box_extract":
+        return step_box_extract(**args)
+    if step == "chunk_text":
+        return step_chunk(**args)
+    if step == "embed_chunks":
+        return step_embed(**args)
+    if step == "extract_metadata":
+        return step_meta(**args)
+    if step == "write_vectors":
+        return step_s3vec(**args)
+    if step == "store_metadata":
+        return step_store_metadata(**args)
+    if step == "complete_pipeline":
+        result = step_complete(**args)
+        _force_vector_reload()
+        return result
+    raise ValueError(f"Unknown pipeline step: {step}")
+
+
 # ── Document ingestion pipeline trigger ───────────────────────────────────────
 @app.post("/pipeline/ingest")
 def trigger_pipeline(req: PipelineIngestRequest):
@@ -911,6 +982,10 @@ def handler(event, context):
             # Keep-warm ping — every 5 min
             print("EventBridge warming ping — Lambda is warm")
             return {"statusCode": 200, "body": '{"status":"warm"}'}
+
+        if src == "pipeline_step":
+            # Temporal worker activity — IAM-authorised direct invoke, no API Gateway 30s limit
+            return _run_pipeline_step(event["step"], event.get("args", {}))
 
         if src == "pipeline_drain":
             # Scheduled drain — every 30 min (EventBridge PipelineDrainRule)

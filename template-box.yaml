@@ -1,0 +1,302 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  AskMyBank.ai — Box + Temporal pattern (parallel to the S3 + Orkes stack).
+  Box webhook → Lambda → Temporal workflow → Fargate worker → Lambda steps.
+  Deploy: sam build -t template-box.yaml && sam deploy --config-env box
+
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+  VectorsBucket:
+    Type: String
+    Default: askmybank-vectors
+  VectorsPrefix:
+    Type: String
+    Default: box/
+  S3SourceBucket:
+    Type: String
+    Default: banking-docs-poc-qahftr
+    Description: Only the box-staging/ prefix is used, for the Textract fallback
+  BedrockRegion:
+    Type: String
+    Default: us-east-1
+  DemoApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+  MotherDuckToken:
+    Type: String
+    NoEcho: true
+  MotherDuckDb:
+    Type: String
+    Default: askmybank_box
+  TemporalAddress:
+    Type: String
+  TemporalNamespace:
+    Type: String
+  TemporalApiKey:
+    Type: String
+    NoEcho: true
+  TemporalApiKeyParameter:
+    Type: String
+    Default: /askmybank/temporal-api-key
+    Description: SSM SecureString holding the Temporal API key for the worker
+  BoxClientId:
+    Type: String
+    Default: ""
+  BoxClientSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+  BoxEnterpriseId:
+    Type: String
+    Default: ""
+  BoxWebhookPrimaryKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+  BoxWebhookSecondaryKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+  WorkerImageUri:
+    Type: String
+    Description: ECR image for the Temporal worker (see deploy_box.sh)
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  WorkerSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Public subnets — the worker gets a public IP so no NAT gateway is needed
+
+Resources:
+
+  # ── Lambda: chat API, Box webhook, pipeline steps ──────────────────────────
+  BoxFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerTag: latest
+      DockerContext: .
+      Dockerfile: Dockerfile
+    Properties:
+      PackageType: Image
+      Description: AskMyBank Box pattern — chat, Box webhook, Temporal pipeline steps
+      Timeout: 870
+      MemorySize: 512
+      Environment:
+        Variables:
+          HOME: /tmp
+          S3_VECTORS_BUCKET: !Ref VectorsBucket
+          S3_VECTORS_PREFIX: !Ref VectorsPrefix
+          S3_SOURCE_BUCKET: !Ref S3SourceBucket
+          BEDROCK_REGION: !Ref BedrockRegion
+          DEMO_API_KEY: !Ref DemoApiKey
+          ANALYTICS_DB_BACKEND: motherduck
+          MOTHERDUCK_TOKEN: !Ref MotherDuckToken
+          MOTHERDUCK_DB: !Ref MotherDuckDb
+          TEMPORAL_ADDRESS: !Ref TemporalAddress
+          TEMPORAL_NAMESPACE: !Ref TemporalNamespace
+          TEMPORAL_API_KEY: !Ref TemporalApiKey
+          BOX_CLIENT_ID: !Ref BoxClientId
+          BOX_CLIENT_SECRET: !Ref BoxClientSecret
+          BOX_ENTERPRISE_ID: !Ref BoxEnterpriseId
+          BOX_WEBHOOK_PRIMARY_KEY: !Ref BoxWebhookPrimaryKey
+          BOX_WEBHOOK_SECONDARY_KEY: !Ref BoxWebhookSecondaryKey
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - textract:StartDocumentTextDetection
+                - textract:GetDocumentTextDetection
+              Resource: "*"
+            # Box index only — the S3 + Orkes index at the bucket root stays out of reach
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub "arn:aws:s3:::${VectorsBucket}/${VectorsPrefix}*"
+            # Short-lived copies for the Textract fallback
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub "arn:aws:s3:::${S3SourceBucket}/box-staging/*"
+      Events:
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BoxApi
+            Path: /
+            Method: GET
+        Proxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BoxApi
+            Path: /{proxy+}
+            Method: ANY
+
+  BoxApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
+      CorsConfiguration:
+        AllowOrigins:
+          - "https://askmybank.ai"
+          - "https://www.askmybank.ai"
+          - "https://dpanwar-vigyan.github.io"
+          - "http://localhost:3000"
+          - "http://localhost:8080"
+        AllowMethods: [GET, POST, OPTIONS]
+        AllowHeaders: [Content-Type, Authorization, X-Backoffice-Key]
+
+  WarmingRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Keep the Box pattern Lambda warm
+      ScheduleExpression: "rate(5 minutes)"
+      State: ENABLED
+      Targets:
+        - Id: WarmBoxFunction
+          Arn: !GetAtt BoxFunction.Arn
+          Input: '{"source": "warming"}'
+
+  WarmingPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt BoxFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WarmingRule.Arn
+
+  # ── Temporal worker on Fargate Spot ────────────────────────────────────────
+  WorkerCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "askmybank-box-${Stage}"
+      CapacityProviders: [FARGATE, FARGATE_SPOT]
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 1
+
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/askmybank-box-worker-${Stage}"
+      RetentionInDays: 14
+
+  WorkerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: read-temporal-key
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameters
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TemporalApiKeyParameter}"
+
+  # The worker's only AWS permission: invoke the pipeline Lambda
+  WorkerTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke-pipeline-lambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt BoxFunction.Arn
+
+  WorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "askmybank-box-worker-${Stage}"
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt WorkerExecutionRole.Arn
+      TaskRoleArn: !GetAtt WorkerTaskRole.Arn
+      ContainerDefinitions:
+        - Name: worker
+          Image: !Ref WorkerImageUri
+          Essential: true
+          Environment:
+            - { Name: TEMPORAL_ADDRESS, Value: !Ref TemporalAddress }
+            - { Name: TEMPORAL_NAMESPACE, Value: !Ref TemporalNamespace }
+            - { Name: PIPELINE_FUNCTION_NAME, Value: !Ref BoxFunction }
+            - { Name: AWS_REGION, Value: !Ref AWS::Region }
+          Secrets:
+            - Name: TEMPORAL_API_KEY
+              ValueFrom: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TemporalApiKeyParameter}"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: worker
+
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Box pipeline worker - outbound only (Temporal Cloud, Lambda API)
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+
+  WorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref WorkerCluster
+      TaskDefinition: !Ref WorkerTaskDefinition
+      DesiredCount: 1
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 1
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref WorkerSubnets
+          SecurityGroups: [!Ref WorkerSecurityGroup]
+
+Outputs:
+  ApiUrl:
+    Description: Box pattern API — chat (/ask), Box webhook (/box/webhook), manual trigger (/box/ingest)
+    Value: !Sub "https://${BoxApi}.execute-api.${AWS::Region}.amazonaws.com"
+  FunctionName:
+    Value: !Ref BoxFunction
+  WorkerLogGroup:
+    Value: !Ref WorkerLogGroup

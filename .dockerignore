@@ -16,3 +16,4 @@ requirements.txt
 setup_motherduck_schema.py
 export_clickhouse.py
 test_integration.py
+.venv

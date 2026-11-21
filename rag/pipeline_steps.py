@@ -31,6 +31,9 @@ BEDROCK_REGION  = os.getenv("BEDROCK_REGION", "us-east-1")
 LLM_MODEL       = os.getenv("LLM_MODEL", "us.amazon.nova-lite-v1:0")
 EMBED_MODEL     = os.getenv("EMBED_MODEL", "amazon.titan-embed-text-v2:0")
 S3_VECTORS_BUCKET = os.getenv("S3_VECTORS_BUCKET", "askmybank-vectors")
+S3_VECTORS_PREFIX = os.getenv("S3_VECTORS_PREFIX", "")   # "box/" isolates the Box pattern's index
+VECTORS_KEY       = f"{S3_VECTORS_PREFIX}vectors.npy"
+METADATA_KEY      = f"{S3_VECTORS_PREFIX}metadata.json"
 SOURCE_BUCKET   = os.getenv("S3_SOURCE_BUCKET", "banking-docs-poc-qahftr")  # ← bug fix
 
 CHUNK_SIZE    = 400
@@ -151,6 +154,77 @@ def step_textract(s3_key: str, doc_id: str) -> dict:
     }
 
 
+# ── Step 2 (Box pattern): box_extract ─────────────────────────────────────────
+# Box is the system of record. Text comes from Box's own extraction; Textract is
+# the fallback (scanned PDFs), via a short-lived staging copy in S3.
+
+_box = None
+_DOC_ID_RE = re.compile(r"^(STMT|DSP|CMP|MNT)\d+$")
+_DATE_FIELD = {"eStatement": "statement_date", "Dispute": "filed_date",
+               "Complaint": "filed_date", "AccountMaintenance": "request_date"}
+
+
+def _box_client():
+    global _box
+    if _box is None:
+        from rag.box_client import BoxClient
+        _box = BoxClient()
+    return _box
+
+
+def step_box_extract(file_id: str, version_id: str = "") -> dict:
+    _debug_pause("box_extract")
+    box  = _box_client()
+    info = box.file_info(file_id)
+    name = info["name"]
+    version_id = version_id or info["file_version"]["id"]
+    tags = box.document_metadata(file_id)
+
+    detected = step_detect(name, tags.get("docType", ""), tags.get("customerId", ""))
+    doc_type = detected["doc_type"]
+    stem     = name.rsplit(".", 1)[0].upper()
+    doc_id   = tags.get("docId") or (stem if _DOC_ID_RE.match(stem) else detected["doc_id"])
+
+    raw_text, page_count, text_source = box.extracted_text(file_id), 1, "box_extracted_text"
+    if not (raw_text and raw_text.strip()):
+        staged_key = f"box-staging/{file_id}-{version_id}.pdf"
+        s3 = _s3()
+        s3.put_object(Bucket=SOURCE_BUCKET, Key=staged_key, Body=box.download(file_id))
+        try:
+            tx = step_textract(staged_key, doc_id)
+        finally:
+            s3.delete_object(Bucket=SOURCE_BUCKET, Key=staged_key)
+        raw_text, page_count, text_source = tx["raw_text"], tx["page_count"], "textract"
+
+    metadata = {
+        "doc_id":              doc_id,
+        "doc_type":            doc_type,
+        "customer_id":         tags.get("customerId", ""),
+        "account_number":      tags.get("accountNumber", ""),
+        "branch_name":         tags.get("branchName", ""),
+        "case_status":         tags.get("caseStatus", ""),
+        "source_uri":          f"https://app.box.com/file/{file_id}",
+        "box_file_id":         file_id,
+        "box_file_version_id": version_id,
+        "file_name":           name,
+        "ingested_at":         datetime.utcnow().isoformat(),
+    }
+    if tags.get("documentDate"):
+        metadata[_DATE_FIELD.get(doc_type, "filed_date")] = tags["documentDate"][:10]
+
+    print(f"[box_extract] ✅ {doc_id} ({name}) — {len(raw_text)} chars via {text_source}")
+    return {
+        "doc_id":      doc_id,
+        "doc_type":    doc_type,
+        "customer_id": metadata["customer_id"],
+        "raw_text":    raw_text,
+        "page_count":  page_count,
+        "char_count":  len(raw_text),
+        "text_source": text_source,
+        "metadata":    {k: v for k, v in metadata.items() if v},
+    }
+
+
 # ── Step 3: chunk_text ────────────────────────────────────────────────────────
 
 def step_chunk(raw_text: str, doc_id: str, doc_type: str, page_count: int = 1) -> dict:
@@ -220,7 +294,7 @@ def step_s3vec(doc_id: str, embeddings: list, chunks: list, metadata: dict) -> d
 
     # ── Download existing metadata.json first (needed for idempotency check) ──
     try:
-        obj           = s3.get_object(Bucket=S3_VECTORS_BUCKET, Key="metadata.json")
+        obj           = s3.get_object(Bucket=S3_VECTORS_BUCKET, Key=METADATA_KEY)
         existing_meta = json.loads(obj["Body"].read())
     except Exception:
         existing_meta = []
@@ -243,7 +317,7 @@ def step_s3vec(doc_id: str, embeddings: list, chunks: list, metadata: dict) -> d
 
     # ── Download existing vectors.npy ─────────────────────────────────────────
     try:
-        obj      = s3.get_object(Bucket=S3_VECTORS_BUCKET, Key="vectors.npy")
+        obj      = s3.get_object(Bucket=S3_VECTORS_BUCKET, Key=VECTORS_KEY)
         existing = np.load(io.BytesIO(obj["Body"].read()))
     except Exception:
         existing = np.empty((0, 256), dtype=np.float32)
@@ -255,7 +329,7 @@ def step_s3vec(doc_id: str, embeddings: list, chunks: list, metadata: dict) -> d
     buf = io.BytesIO()
     np.save(buf, combined)
     buf.seek(0)
-    s3.put_object(Bucket=S3_VECTORS_BUCKET, Key="vectors.npy", Body=buf.getvalue())
+    s3.put_object(Bucket=S3_VECTORS_BUCKET, Key=VECTORS_KEY, Body=buf.getvalue())
 
     # ── Append metadata entries ───────────────────────────────────────────────
     for i, chunk in enumerate(chunks):
@@ -263,7 +337,7 @@ def step_s3vec(doc_id: str, embeddings: list, chunks: list, metadata: dict) -> d
         existing_meta.append(entry)
 
     s3.put_object(
-        Bucket=S3_VECTORS_BUCKET, Key="metadata.json",
+        Bucket=S3_VECTORS_BUCKET, Key=METADATA_KEY,
         Body=json.dumps(existing_meta), ContentType="application/json",
     )
 
@@ -374,12 +448,18 @@ def step_store_metadata(doc_id: str, metadata: dict, s3_key: str) -> dict:
         val = metadata.get(key, default)
         return val if val is not None else default
 
+    def as_date(key):
+        try:
+            return datetime.fromisoformat(str(metadata[key])[:10]).date()
+        except (KeyError, ValueError):
+            return None
+
     db.insert(
         table="banking_docs.documents",
         data=[[
             safe("doc_id", doc_id),
             safe("doc_type"),
-            f"s3://{SOURCE_BUCKET}/{s3_key}",    # source PDF path
+            metadata.get("source_uri") or f"s3://{SOURCE_BUCKET}/{s3_key}",   # Box link or S3 path
             safe("customer_id"),
             safe("customer_name"),
             safe("account_number"),
@@ -387,15 +467,15 @@ def step_store_metadata(doc_id: str, metadata: dict, s3_key: str) -> dict:
             safe("branch_name"),
             "", safe("rm_name"), "",             # rm_id, rm_name, rm_email
             safe("case_status"),
-            None, None,                          # filed_date, closed_date
+            as_date("filed_date"), None,         # filed_date, closed_date
             safe("resolution"),
             safe("dispute_type"),
             metadata.get("dispute_amount"),
             safe("complaint_type"),
             safe("priority", "Medium"),
             metadata.get("compensation_paid"),
-            "", "", None, None,                  # request_type/status/date/processed_date
-            None, None,                          # statement_date, closing_balance
+            "", "", as_date("request_date"), None,   # request_type/status/date/processed_date
+            as_date("statement_date"), None,         # statement_date, closing_balance
             safe("case_summary"),
             now,
         ]],

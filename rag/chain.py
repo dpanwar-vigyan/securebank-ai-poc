@@ -570,6 +570,12 @@ class BankingRAG:
     @observe(name="vector-retrieve")
     def retrieve(self, query: str, filters: dict) -> list[dict]:
         # ── S3+NumPy (Phase 2 Lambda backend) ─────────────────────────────────
+        # Retry init: a container that started before the first vectors were written has none yet
+        if not self.s3_retriever and os.getenv("S3_VECTORS_BUCKET"):
+            try:
+                self.s3_retriever = S3NumpyRetriever(embed_fn=self.embed)
+            except Exception:
+                pass
         if self.s3_retriever:
             try:
                 chunks = self.s3_retriever.retrieve(query, filters)
@@ -715,6 +721,8 @@ Please answer based only on the context above. Cite document IDs in your respons
                 "branch_name":   meta.get("branch_name", ""),
                 "case_summary":  meta.get("case_summary", ""),
                 "s3_path":       meta.get("s3_path", ""),
+                "source_uri":    meta.get("source_uri", ""),
+                "box_file_version_id": meta.get("box_file_version_id", ""),
             })
 
         ct = detect_content_type(query, sources)

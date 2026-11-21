@@ -24,8 +24,9 @@ import numpy as np
 import rag.config  # noqa: F401
 
 S3_BUCKET    = os.getenv("S3_VECTORS_BUCKET", "")
-VECTORS_KEY  = "vectors.npy"
-METADATA_KEY = "metadata.json"
+S3_PREFIX    = os.getenv("S3_VECTORS_PREFIX", "")   # "box/" for the Box pattern's index
+VECTORS_KEY  = f"{S3_PREFIX}vectors.npy"
+METADATA_KEY = f"{S3_PREFIX}metadata.json"
 TOP_K        = 20
 
 # How often (seconds) to HEAD-check S3 for a new ETag.
