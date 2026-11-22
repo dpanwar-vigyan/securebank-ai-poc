@@ -27,10 +27,15 @@
            padding: 18px 24px 10px; }
   .brand { display: flex; align-items: baseline; gap: 10px; }
   .brand b { font-size: 17px; letter-spacing: -0.2px; }
-  .pill { font-size: 11px; font-weight: 600; letter-spacing: .4px; color: var(--box);
+  .pill { white-space: nowrap; font-size: 11px; font-weight: 600; letter-spacing: .4px; color: var(--box);
           background: var(--box-soft); padding: 3px 9px; border-radius: 999px; }
-  nav { display: flex; gap: 16px; font-size: 13px; }
-  nav a { color: var(--ink-2); }
+  .brand a { color: var(--ink); }
+  .brand a:hover { text-decoration: none; }
+  nav { display: flex; gap: 4px; font-size: 13px; }
+  nav a { color: var(--ink-2); padding: 6px 10px; border-radius: 8px; white-space: nowrap; }
+  nav a:hover { background: #eef2f7; color: var(--ink); text-decoration: none; }
+  nav a.active { color: var(--box); background: var(--box-soft); font-weight: 600; }
+
 
   .status { display: flex; align-items: center; gap: 8px; padding: 0 24px 14px;
             font-size: 12.5px; color: var(--ink-2); border-bottom: 1px solid var(--line); }
@@ -86,9 +91,9 @@
   .error { color: var(--warn); }
 
   footer { padding: 12px 24px 20px; }
-  form { display: flex; gap: 8px; background: var(--card); border: 1px solid var(--line);
+  footer form { display: flex; gap: 8px; background: var(--card); border: 1px solid var(--line);
          border-radius: 16px; padding: 8px 8px 8px 14px; box-shadow: 0 4px 18px rgba(15,23,42,.05); }
-  form:focus-within { border-color: var(--box); }
+  footer form:focus-within { border-color: var(--box); }
   textarea { flex: 1; border: 0; outline: 0; resize: none; font: inherit; color: var(--ink);
              background: transparent; max-height: 140px; padding: 6px 0; }
   button.send { border: 0; background: var(--box); color: #fff; border-radius: 10px; padding: 0 16px;
@@ -97,8 +102,9 @@
   .hint { font-size: 11.5px; color: var(--ink-3); text-align: center; margin-top: 8px; }
 
   @media (max-width: 640px) {
-    header { padding: 14px 16px 8px; flex-wrap: wrap; }
-    nav { display: none; }
+    header { padding: 12px 16px 6px; flex-wrap: wrap; row-gap: 6px; }
+    nav { width: 100%; overflow-x: auto; scrollbar-width: none; margin: 0 -8px; gap: 0; }
+    nav a { padding: 6px 8px; font-size: 12.5px; }
     .status, main, footer { padding-left: 16px; padding-right: 16px; }
     .chips { grid-template-columns: 1fr; }
     .src { flex-direction: column; align-items: flex-start; gap: 2px; }
@@ -106,12 +112,14 @@
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
   <header>
-    <div class="brand"><b>AskMyBank</b><span class="pill">BOX + TEMPORAL</span></div>
-    <nav>
+    <div class="brand"><a href="/"><b>AskMyBank</b></a><span class="pill">BOX + TEMPORAL</span></div>
+    <nav aria-label="Main">
+      <a href="/">Home</a>
+      <a href="chat-box.html" class="active" aria-current="page">Box demo</a>
       <a href="linkedin/box-architecture.html">Architecture</a>
-      <a href="chat.html">S3 + Orkes version</a>
+      <a href="chat.html">S3 + Orkes demo</a>
     </nav>
   </header>
   <div class="status"><span class="dot" id="dot"></span><span id="status">Connecting to the Box index…</span></div>
@@ -213,13 +221,20 @@ async function ask(question) {
   turn.scrollIntoView({ behavior: 'smooth', block: 'end' });
   const answerEl = turn.querySelector('.a');
   const t0 = performance.now();
+  let r;
   try {
-    const r = await fetch(`${API}/ask`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                         body: JSON.stringify({ query: question }) });
-    if (!r.ok) throw new Error(`The service returned ${r.status}`);
+    r = await fetch(`${API}/ask`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ query: question }) });
+  } catch {
+    answerEl.innerHTML = `<div class="error">Couldn't reach the demo. Check your connection and try again.</div>`;
+    return;
+  }
+  if (r.status === 429 || r.status === 503) {
+    answerEl.innerHTML = `<div class="error">The demo is busy right now. Wait a few seconds and ask again.</div>`;
+  } else if (!r.ok) {
+    answerEl.innerHTML = `<div class="error">Couldn't get an answer (error ${r.status}). Try again in a moment.</div>`;
+  } else {
     renderAnswer(answerEl, await r.json(), performance.now() - t0);
-  } catch (e) {
-    answerEl.innerHTML = `<div class="error">Couldn't get an answer: ${esc(e.message)}. Try again in a moment.</div>`;
   }
   turn.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
@@ -264,6 +279,7 @@ $('form').addEventListener('submit', e => {
 });
 document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => ask(c.dataset.q)));
 
+input.focus();
 loadStatus();
 setInterval(loadStatus, 60000);
 </script>

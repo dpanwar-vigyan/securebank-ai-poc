@@ -179,6 +179,8 @@ Resources:
     Properties:
       FunctionName: !Sub "askmybank-api-${Stage}"
       PackageType: Image
+      # Cost ceiling: at most 10 copies at once
+      ReservedConcurrentExecutions: 10
       Description: AskMyBank RAG API — S3 vectors + Bedrock + ClickHouse/MotherDuck
       Policies:
         # Read vectors from S3
@@ -258,6 +260,11 @@ Resources:
       DefaultRouteSettings:
         ThrottlingBurstLimit: 10    # max simultaneous requests
         ThrottlingRateLimit: 5      # requests per second sustained
+      # Every question calls Bedrock — keep the public chat to 1/s so a script can't run up a bill
+      RouteSettings:
+        "POST /ask":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
       CorsConfiguration:
         AllowOrigins:
           - "https://askmybank.ai"

@@ -84,6 +84,8 @@ Resources:
       Description: AskMyBank Box pattern — chat, Box webhook, Temporal pipeline steps
       Timeout: 870
       MemorySize: 512
+      # Cost ceiling: at most 10 copies at once (worker runs 8 steps in parallel)
+      ReservedConcurrentExecutions: 10
       Environment:
         Variables:
           HOME: /tmp
@@ -135,6 +137,13 @@ Resources:
             ApiId: !Ref BoxApi
             Path: /
             Method: GET
+        # Own route so it can be throttled harder than the webhook and pipeline routes
+        Ask:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BoxApi
+            Path: /ask
+            Method: POST
         Proxy:
           Type: HttpApi
           Properties:
@@ -149,6 +158,11 @@ Resources:
       DefaultRouteSettings:
         ThrottlingBurstLimit: 20
         ThrottlingRateLimit: 10
+      # Every question calls Bedrock — keep the public chat to 1/s so a script can't run up a bill
+      RouteSettings:
+        "POST /ask":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
       CorsConfiguration:
         AllowOrigins:
           - "https://askmybank.ai"

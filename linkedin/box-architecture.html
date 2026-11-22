@@ -6,6 +6,16 @@
 <title>Box + Temporal — Two Lanes of Document Intelligence</title>
 <style>
   body { margin: 0; background: #f8fbff; color: #0f172a; font-family: Inter, "Segoe UI", Arial, sans-serif; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+            max-width: 1600px; margin: 0 auto; padding: 14px 16px 0; }
+  .topbar .brand { display: flex; align-items: baseline; gap: 10px; color: #0f172a; text-decoration: none; }
+  .topbar .brand b { font-size: 17px; }
+  .topbar .pill { white-space: nowrap; font-size: 11px; font-weight: 600; letter-spacing: .4px; color: #0061d5; background: #e8f1fd;
+                  padding: 3px 9px; border-radius: 999px; }
+  .topbar nav { display: flex; gap: 4px; font-size: 13px; overflow-x: auto; }
+  .topbar nav a { color: #475569; padding: 6px 10px; border-radius: 8px; text-decoration: none; white-space: nowrap; }
+  .topbar nav a:hover { background: #eef2f7; color: #0f172a; }
+  .topbar nav a.active { color: #0061d5; background: #e8f1fd; font-weight: 600; }
   .wrap { max-width: 1600px; margin: 0 auto; padding: 16px; }
   svg { display: block; width: 100%; height: auto; }
   .guide { max-width: 1100px; margin: 8px auto 40px; padding: 0 16px; }
@@ -20,6 +30,15 @@
 </style>
 </head>
 <body>
+<header class="topbar">
+  <a class="brand" href="/"><b>AskMyBank</b><span class="pill">BOX + TEMPORAL</span></a>
+  <nav aria-label="Main">
+    <a href="/">Home</a>
+    <a href="../chat-box.html">Box demo</a>
+    <a href="box-architecture.html" class="active" aria-current="page">Architecture</a>
+    <a href="../chat.html">S3 + Orkes demo</a>
+  </nav>
+</header>
 <div class="wrap">
 <svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img"
      aria-label="Two lanes of document intelligence: native Box AI for depth inside a case, external vectorisation for breadth across the enterprise">
