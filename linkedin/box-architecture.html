@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Box + Temporal — Two Lanes of Document Intelligence</title>
+<style>
+  body { margin: 0; background: #f8fbff; color: #0f172a; font-family: Inter, "Segoe UI", Arial, sans-serif; }
+  .wrap { max-width: 1600px; margin: 0 auto; padding: 16px; }
+  svg { display: block; width: 100%; height: auto; }
+  .guide { max-width: 1100px; margin: 8px auto 40px; padding: 0 16px; }
+  .guide h2 { font-size: 20px; margin: 0 0 10px; }
+  .guide p { color: #475569; font-size: 14px; margin: 0 0 14px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: #64748b; background: #f8fafc; }
+  .l1 { color: #0061d5; font-weight: 600; white-space: nowrap; }
+  .l2 { color: #6d28d9; font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Two lanes of document intelligence: native Box AI for depth inside a case, external vectorisation for breadth across the enterprise">
+  <defs>
+    <marker id="aBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0061d5"/></marker>
+    <marker id="aPurple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6d28d9"/></marker>
+    <marker id="aGrey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+  </defs>
+  <style>
+    text { font-family: Inter, "Segoe UI", Arial, sans-serif; fill: #0f172a; }
+    .title { font-size: 32px; font-weight: 700; }
+    .subtitle { font-size: 17px; fill: #475569; }
+    .lane { font-size: 13px; font-weight: 700; letter-spacing: 1.6px; }
+    .tag { font-size: 13px; fill: #475569; font-style: italic; }
+    .h { font-size: 17px; font-weight: 700; }
+    .s { font-size: 13px; fill: #475569; }
+    .s-blue { font-size: 13px; fill: #dbeafe; }
+    .s-purple { font-size: 13px; fill: #ede9fe; }
+    .item { font-size: 15px; }
+    .note { font-size: 13px; fill: #475569; }
+    .cap { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; fill: #64748b; }
+    .map-k { font-size: 12px; font-weight: 700; fill: #0f172a; }
+    .map-v { font-size: 12.5px; fill: #64748b; }
+    .map-e { font-size: 12.5px; fill: #0f172a; font-weight: 600; }
+    .card { fill: #ffffff; }
+  </style>
+
+  <rect width="1600" height="900" fill="#f8fbff"/>
+
+  <!-- Title -->
+  <text x="40" y="62" class="title">Two lanes of document intelligence</text>
+  <text x="40" y="94" class="subtitle">Box AI for depth inside a case. External vectorisation for breadth across the enterprise.</text>
+
+  <!-- ── Sources ─────────────────────────────────────────────── -->
+  <text x="40" y="138" class="cap">SOURCES</text>
+  <rect x="40" y="150" width="270" height="300" rx="16" class="card" stroke="#0061d5" stroke-width="2"/>
+  <rect x="40" y="150" width="270" height="56" rx="16" fill="#0061d5"/>
+  <rect x="40" y="186" width="270" height="20" fill="#0061d5"/>
+  <text x="62" y="185" font-size="18" font-weight="700" fill="#ffffff">Box</text>
+  <text x="108" y="185" font-size="14" fill="#dbeafe">system of record</text>
+  <text x="62" y="240" class="item">eStatements</text>
+  <text x="62" y="274" class="item">Disputes &amp; complaints</text>
+  <text x="62" y="308" class="item">Mortgage applications</text>
+  <text x="62" y="342" class="item">Deal documents</text>
+  <line x1="62" y1="370" x2="288" y2="370" stroke="#e2e8f0"/>
+  <text x="62" y="396" class="s">Metadata templates</text>
+  <text x="62" y="418" class="s">Versions · permissions · retention</text>
+
+  <rect x="40" y="480" width="270" height="230" rx="16" class="card" stroke="#94a3b8" stroke-width="2" stroke-dasharray="7 6"/>
+  <text x="62" y="520" class="h">Other sources</text>
+  <text x="62" y="556" class="item">Core banking &amp; CRM</text>
+  <text x="62" y="590" class="item">SharePoint &amp; email</text>
+  <text x="62" y="624" class="item">Warehouse tables</text>
+  <text x="62" y="680" class="s">Not in Box, so out of Box AI's reach</text>
+
+  <!-- ── Lane 1: native Box AI ───────────────────────────────── -->
+  <rect x="350" y="150" width="880" height="270" rx="18" fill="#eef5ff" stroke="#0061d5" stroke-width="2"/>
+  <text x="378" y="184" class="lane" fill="#0061d5">LANE 1 · NATIVE BOX AI</text>
+  <text x="1202" y="184" class="tag" text-anchor="end">Depth inside one case</text>
+
+  <rect x="378" y="212" width="250" height="118" rx="12" class="card" stroke="#bfdbfe" stroke-width="1.5"/>
+  <text x="398" y="246" class="h">Case in a workflow</text>
+  <text x="398" y="272" class="s">Dispute, complaint, mortgage</text>
+  <text x="398" y="292" class="s">or deal review</text>
+
+  <rect x="665" y="212" width="250" height="118" rx="12" fill="#0061d5"/>
+  <text x="685" y="246" class="h" fill="#ffffff">Box AI Ask · Extract</text>
+  <text x="685" y="272" class="s-blue">One file, a handful of files,</text>
+  <text x="685" y="292" class="s-blue">or a curated Hub</text>
+
+  <rect x="952" y="212" width="250" height="118" rx="12" class="card" stroke="#bfdbfe" stroke-width="1.5"/>
+  <text x="972" y="246" class="h">Answer or fields</text>
+  <text x="972" y="272" class="s">Back into the case, or written</text>
+  <text x="972" y="292" class="s">to Box metadata</text>
+
+  <line x1="628" y1="271" x2="661" y2="271" stroke="#0061d5" stroke-width="2.5" marker-end="url(#aBlue)"/>
+  <line x1="915" y1="271" x2="948" y2="271" stroke="#0061d5" stroke-width="2.5" marker-end="url(#aBlue)"/>
+  <text x="378" y="392" class="note">Box-managed index · inherits Box permissions · content never leaves Box</text>
+
+  <!-- ── Lane 2: external vectorisation ──────────────────────── -->
+  <rect x="350" y="450" width="880" height="290" rx="18" fill="#f5f3ff" stroke="#6d28d9" stroke-width="2"/>
+  <text x="378" y="484" class="lane" fill="#6d28d9">LANE 2 · EXTERNAL VECTORISATION</text>
+  <text x="1202" y="484" class="tag" text-anchor="end">Breadth across the enterprise</text>
+
+  <rect x="378" y="512" width="190" height="150" rx="12" class="card" stroke="#ddd6fe" stroke-width="1.5"/>
+  <text x="396" y="548" class="h">Events</text>
+  <text x="396" y="574" class="s">Box webhook on</text>
+  <text x="396" y="594" class="s">every upload, plus</text>
+  <text x="396" y="614" class="s">other connectors</text>
+
+  <rect x="598" y="512" width="210" height="150" rx="12" fill="#6d28d9"/>
+  <text x="616" y="548" class="h" fill="#ffffff">Temporal pipeline</text>
+  <text x="616" y="574" class="s-purple">Extract → chunk → embed</text>
+  <text x="616" y="594" class="s-purple">Retried, resumable,</text>
+  <text x="616" y="614" class="s-purple">every step audited</text>
+
+  <rect x="838" y="506" width="182" height="74" rx="12" class="card" stroke="#ddd6fe" stroke-width="1.5"/>
+  <text x="854" y="536" class="h">Vector index</text>
+  <text x="854" y="560" class="s">Semantic search</text>
+  <rect x="838" y="594" width="182" height="74" rx="12" class="card" stroke="#ddd6fe" stroke-width="1.5"/>
+  <text x="854" y="624" class="h">Metadata index</text>
+  <text x="854" y="648" class="s">SQL counts &amp; trends</text>
+
+  <rect x="1050" y="512" width="152" height="150" rx="12" class="card" stroke="#6d28d9" stroke-width="2"/>
+  <text x="1066" y="548" class="h">Model garden</text>
+  <text x="1066" y="574" class="s">Bank-approved</text>
+  <text x="1066" y="594" class="s">models and</text>
+  <text x="1066" y="614" class="s">guardrails</text>
+
+  <line x1="568" y1="587" x2="594" y2="587" stroke="#6d28d9" stroke-width="2.5" marker-end="url(#aPurple)"/>
+  <path d="M808,587 C822,587 822,543 834,543" fill="none" stroke="#6d28d9" stroke-width="2.5" marker-end="url(#aPurple)"/>
+  <path d="M808,587 C822,587 822,631 834,631" fill="none" stroke="#6d28d9" stroke-width="2.5" marker-end="url(#aPurple)"/>
+  <path d="M1020,543 C1035,543 1035,587 1046,587" fill="none" stroke="#6d28d9" stroke-width="2.5" marker-end="url(#aPurple)"/>
+  <path d="M1020,631 C1035,631 1035,587 1046,587" fill="none" stroke="#6d28d9" stroke-width="2.5"/>
+  <text x="378" y="712" class="note">Every passage keeps its Box file ID and version, so answers cite the exact source</text>
+
+  <!-- Sources → lanes -->
+  <line x1="310" y1="271" x2="374" y2="271" stroke="#0061d5" stroke-width="2.5" marker-end="url(#aBlue)"/>
+  <path d="M310,330 C336,330 340,560 374,560" fill="none" stroke="#6d28d9" stroke-width="2.5" marker-end="url(#aPurple)"/>
+  <path d="M310,600 C340,600 344,616 374,616" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#aGrey)"/>
+
+  <!-- ── Consumers ───────────────────────────────────────────── -->
+  <text x="1270" y="138" class="cap">WHO GETS THE ANSWER</text>
+  <rect x="1270" y="212" width="290" height="118" rx="14" class="card" stroke="#0061d5" stroke-width="2"/>
+  <text x="1290" y="246" class="h">Case workers</text>
+  <text x="1290" y="272" class="s">Inside the workflow they</text>
+  <text x="1290" y="292" class="s">already use, case by case</text>
+  <line x1="1202" y1="271" x2="1266" y2="271" stroke="#0061d5" stroke-width="2.5" marker-end="url(#aBlue)"/>
+
+  <rect x="1270" y="512" width="290" height="150" rx="14" class="card" stroke="#6d28d9" stroke-width="2"/>
+  <text x="1290" y="548" class="h">Bankers &amp; analysts</text>
+  <text x="1290" y="574" class="s">Assistant, archive search and</text>
+  <text x="1290" y="594" class="s">trends across Box and</text>
+  <text x="1290" y="614" class="s">non-Box information</text>
+  <line x1="1202" y1="587" x2="1266" y2="587" stroke="#6d28d9" stroke-width="2.5" marker-end="url(#aPurple)"/>
+
+  <!-- ── Demo → enterprise mapping ───────────────────────────── -->
+  <rect x="40" y="772" width="1520" height="100" rx="14" class="card" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="64" y="806" class="cap">IN THIS DEMO</text>
+  <text x="64" y="826" class="cap">→ IN AN ENTERPRISE</text>
+
+  <text x="290" y="806" class="map-k">Embeddings</text>
+  <text x="290" y="828" class="map-v">Titan Text Embeddings v2</text>
+  <text x="290" y="850" class="map-e">→ the bank's embedding model</text>
+
+  <text x="545" y="806" class="map-k">Vector index</text>
+  <text x="545" y="828" class="map-v">S3 + NumPy</text>
+  <text x="545" y="850" class="map-e">→ Snowflake Cortex Search, OpenSearch</text>
+
+  <text x="850" y="806" class="map-k">Metadata index</text>
+  <text x="850" y="828" class="map-v">MotherDuck</text>
+  <text x="850" y="850" class="map-e">→ Snowflake</text>
+
+  <text x="1060" y="806" class="map-k">Answer model</text>
+  <text x="1060" y="828" class="map-v">Amazon Nova Lite on Bedrock</text>
+  <text x="1060" y="850" class="map-e">→ the bank's model garden</text>
+
+  <text x="1320" y="806" class="map-k">Orchestration</text>
+  <text x="1320" y="828" class="map-v">Temporal Cloud</text>
+  <text x="1320" y="850" class="map-e">→ Temporal Cloud or self-hosted</text>
+</svg>
+</div>
+
+<section class="guide">
+  <h2>Which lane?</h2>
+  <p>Most banks need both. Box AI answers questions about the document in front of you; the external lane answers questions about everything you hold.</p>
+  <div class="scroll">
+  <table>
+    <tr><th>The question looks like…</th><th>Lane</th><th>Why</th></tr>
+    <tr><td>"Does this voucher match the disputed transaction?"</td><td class="l1">Lane 1 · Box AI</td><td>One case, a few files, answered inside the dispute workflow</td></tr>
+    <tr><td>"Pull the applicant's income and employer from this mortgage application"</td><td class="l1">Lane 1 · Box AI Extract</td><td>Structured fields from one document, written back to Box metadata</td></tr>
+    <tr><td>"What are the change-of-control terms in this deal?"</td><td class="l1">Lane 1 · Box AI</td><td>Deep reading of one large document; check Box AI's size limits for very long deals</td></tr>
+    <tr><td>"Which customers raised similar complaints last year?"</td><td class="l2">Lane 2 · vector index</td><td>Search across thousands of documents, not one</td></tr>
+    <tr><td>"How many disputes did each branch get?"</td><td class="l2">Lane 2 · metadata index</td><td>Counts and trends are SQL, not reading</td></tr>
+    <tr><td>"Combine statement history with CRM notes"</td><td class="l2">Lane 2</td><td>Data outside Box can't reach Box AI</td></tr>
+    <tr><td>"Must run on our approved model with our guardrails"</td><td class="l2">Lane 2</td><td>The bank controls the model, prompts and logging end to end</td></tr>
+  </table>
+  </div>
+</section>
+</body>
+</html>

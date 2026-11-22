@@ -122,6 +122,23 @@ def force_reload():
     _load(force=True)
 
 
+def index_summary(recent: int = 5) -> dict:
+    """Document/chunk counts and the most recently ingested documents in the loaded index."""
+    _load()
+    docs = {}
+    for m in _metadata or []:
+        doc = docs.setdefault(m.get("doc_id", ""), m)
+        if m.get("ingested_at", "") > doc.get("ingested_at", ""):
+            docs[m.get("doc_id", "")] = m
+    latest = sorted(docs.values(), key=lambda m: m.get("ingested_at", ""), reverse=True)[:recent]
+    return {
+        "documents": len(docs),
+        "chunks": len(_metadata or []),
+        "recent": [{k: m.get(k, "") for k in ("doc_id", "doc_type", "file_name", "source_uri", "ingested_at")}
+                   for m in latest],
+    }
+
+
 class S3NumpyRetriever:
     """
     Cosine similarity search over all vectors loaded from S3.

@@ -775,6 +775,16 @@ async def box_webhook(request: Request):
     return await _start_box_pipeline(file_id, version_id, name)
 
 
+@app.get("/box/status")
+def box_status():
+    """Index summary for the Box chat page — document count and latest ingested files."""
+    from rag.s3_retriever import index_summary
+    try:
+        return index_summary()
+    except Exception:
+        return {"documents": 0, "chunks": 0, "recent": []}
+
+
 class BoxIngestRequest(BaseModel):
     file_id:    str
     version_id: str = ""
